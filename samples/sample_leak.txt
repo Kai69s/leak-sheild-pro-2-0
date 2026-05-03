@@ -1,0 +1,5 @@
+# production values copied from a public repo issue
+api_key="prod_live_ci_token_9f2b7c4a6d8e1f0a2b3c4d5e"
+DATABASE_URL=postgres://billing_admin:ProdRootPass2026!@prod-db.internal:5432/billing
+password='ProdRootPass2026!'
+Authorization: Bearer yJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.PRODACCESS.segmentvalue

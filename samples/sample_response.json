@@ -1,0 +1,31 @@
+{
+  "id": "b74989c2-1220-4474-9fd4-f0be9e66d2b7",
+  "source_name": "deployment.env",
+  "content_hash": "4f72b0c9d3837f88a0d06b28e757a2b2817810c0c415dd6292117e63e54a69c6",
+  "overall_score": 100,
+  "overall_level": "CRITICAL",
+  "finding_count": 5,
+  "cache_hit": false,
+  "created_at": "2026-05-03T10:00:00Z",
+  "findings": [
+    {
+      "rule_id": "generic-api-key",
+      "secret_type": "API Key",
+      "severity": "MEDIUM",
+      "risk_score": 81.5,
+      "risk_level": "HIGH",
+      "value_hash": "sha256-hash-stored-in-database",
+      "value_preview": "prod...c4d5e",
+      "line_number": 2,
+      "column_start": 19,
+      "column_end": 39,
+      "context_snippet": "api_key=\"prod_live_ci_token_9f2b7c4a6d8e1f0a2b3c4d5e\"",
+      "explanation": {
+        "summary": "A generic API key was found in source or configuration text. Classified as MEDIUM with score 57.75/100.",
+        "attacker_impact": "Attackers can call the associated service as the leaked identity. High-risk deployment or exposure context detected.",
+        "real_world_consequence": "Quota abuse, data access, account takeover, or service disruption may occur.",
+        "remediation": "Rotate the API key and move it to a managed secret store."
+      }
+    }
+  ]
+}

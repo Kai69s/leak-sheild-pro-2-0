@@ -1,0 +1,34 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: #e5edf5;
+  background:
+    radial-gradient(circle at top left, rgba(32, 214, 179, 0.12), transparent 32rem),
+    linear-gradient(135deg, #070b10 0%, #111820 44%, #10131b 100%);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+.risk-meter {
+  background: conic-gradient(var(--risk-color) calc(var(--risk-score) * 1%), #253342 0);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 #0f172a;
+}
+

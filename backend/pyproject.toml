@@ -1,0 +1,28 @@
+[project]
+name = "leakshield-pro-backend"
+version = "1.0.0"
+description = "Async FastAPI backend for LeakShield Pro secret detection"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi>=0.115.0",
+  "uvicorn[standard]>=0.30.0",
+  "pydantic>=2.8.0",
+  "pydantic-settings>=2.4.0",
+  "sqlalchemy[asyncio]>=2.0.32",
+  "asyncpg>=0.29.0",
+  "redis>=5.0.8",
+  "python-dotenv>=1.0.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.0",
+  "pytest-asyncio>=0.23.8",
+  "httpx>=0.27.0",
+  "ruff>=0.6.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
