@@ -3,13 +3,16 @@ import {
   AlertTriangle,
   Database,
   Filter,
+  FolderOpen,
+  Globe2,
   History,
   KeyRound,
   Loader2,
   RefreshCw,
   Search,
   ShieldCheck,
-  TerminalSquare
+  TerminalSquare,
+  Upload
 } from "lucide-react";
 import { createScan, getScan, listScans } from "./api";
 
@@ -38,6 +41,9 @@ function riskColor(level) {
 export default function App() {
   const [content, setContent] = useState(defaultInput);
   const [sourceName, setSourceName] = useState("deployment.env");
+  const [scanMode, setScanMode] = useState("text");
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [projectFiles, setProjectFiles] = useState([]);
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [query, setQuery] = useState("");
@@ -59,10 +65,29 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
+      const payload =
+        scanMode === "website"
+          ? {
+              mode: "website",
+              website_url: websiteUrl,
+              source_name: websiteUrl || "website-scan",
+              metadata: { entrypoint: "website-url", submitted_at: new Date().toISOString() }
+            }
+          : scanMode === "project-folder"
+            ? {
+                mode: "project-folder",
+                files: projectFiles,
+                source_name: sourceName || "uploaded-project",
+                metadata: { entrypoint: "folder-upload", submitted_at: new Date().toISOString() }
+              }
+            : {
+                mode: "text",
+                content,
+                source_name: sourceName,
+                metadata: { entrypoint: "dashboard", submitted_at: new Date().toISOString() }
+              };
       const data = await createScan({
-        content,
-        source_name: sourceName,
-        metadata: { entrypoint: "dashboard", submitted_at: new Date().toISOString() }
+        ...payload
       });
       setResult(data);
       await refreshHistory();
@@ -71,6 +96,29 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleFolderUpload(event) {
+    const files = Array.from(event.target.files || []);
+    setError("");
+    const readableFiles = files
+      .filter((file) => !file.name.match(/\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|exe|dll|woff2?|ttf|mp4|mp3)$/i))
+      .slice(0, 80);
+    const loaded = await Promise.all(
+      readableFiles.map(async (file) => ({
+        path: file.webkitRelativePath || file.name,
+        size: file.size,
+        content: await file.text()
+      }))
+    );
+    setProjectFiles(loaded);
+    setSourceName(files[0]?.webkitRelativePath?.split("/")[0] || "uploaded-project");
+    setContent(
+      loaded
+        .slice(0, 12)
+        .map((file) => `// ${file.path}\n${file.content.slice(0, 700)}`)
+        .join("\n\n")
+    );
   }
 
   async function loadScan(id) {
@@ -117,7 +165,7 @@ export default function App() {
             <div className="flex flex-col gap-3 border-b border-line p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2">
                 <TerminalSquare className="h-5 w-5 text-cyber" />
-                <h2 className="text-base font-semibold">Scan Input</h2>
+                <h2 className="text-base font-semibold">Scan Target</h2>
               </div>
               <div className="flex gap-2">
                 <input
@@ -137,11 +185,47 @@ export default function App() {
                 </button>
               </div>
             </div>
+            <div className="grid gap-3 border-b border-line p-4 lg:grid-cols-[auto_1fr]">
+              <div className="flex flex-wrap gap-2">
+                <ModeButton active={scanMode === "text"} onClick={() => setScanMode("text")} icon={TerminalSquare} label="Text" />
+                <ModeButton active={scanMode === "project-folder"} onClick={() => setScanMode("project-folder")} icon={FolderOpen} label="Folder" />
+                <ModeButton active={scanMode === "website"} onClick={() => setScanMode("website")} icon={Globe2} label="Website" />
+              </div>
+              {scanMode === "project-folder" && (
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-line bg-ink px-3 py-2 text-sm text-slate-200 hover:border-cyber/70">
+                  <Upload className="h-4 w-4 text-cyber" />
+                  Upload project folder
+                  <input
+                    type="file"
+                    className="hidden"
+                    multiple
+                    webkitdirectory=""
+                    directory=""
+                    onChange={handleFolderUpload}
+                  />
+                  <span className="text-xs text-slate-500">{projectFiles.length ? `${projectFiles.length} files ready` : "No folder selected"}</span>
+                </label>
+              )}
+              {scanMode === "website" && (
+                <div className="relative">
+                  <Globe2 className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-500" />
+                  <input
+                    className="w-full rounded-md border border-line bg-ink py-2 pl-9 pr-3 text-sm outline-none focus:border-cyber"
+                    value={websiteUrl}
+                    onChange={(event) => setWebsiteUrl(event.target.value)}
+                    placeholder="https://example.com"
+                    aria-label="Website URL"
+                  />
+                </div>
+              )}
+            </div>
             <textarea
               className="h-[430px] w-full resize-none bg-transparent p-4 font-mono text-sm leading-6 text-slate-100 outline-none scrollbar-thin"
               value={content}
               onChange={(event) => setContent(event.target.value)}
+              readOnly={scanMode === "website"}
               spellCheck={false}
+              placeholder={scanMode === "website" ? "Enter a website URL above. LeakShield will fetch public HTML and linked assets." : ""}
             />
             {error && <div className="border-t border-breach/40 bg-breach/10 p-3 text-sm text-breach">{error}</div>}
           </div>
@@ -220,6 +304,7 @@ export default function App() {
               </div>
             </div>
             <div className="grid gap-3 p-4 md:grid-cols-2">
+              {result?.recommendation && <RecommendationCard recommendation={result.recommendation} />}
               {filteredFindings.map((finding) => (
                 <FindingCard key={`${finding.rule_id}-${finding.line_number}-${finding.column_start}`} finding={finding} />
               ))}
@@ -242,6 +327,21 @@ function Metric({ label, value }) {
       <div className="text-xs uppercase text-slate-500">{label}</div>
       <div className="mt-1 text-lg font-semibold">{value}</div>
     </div>
+  );
+}
+
+function ModeButton({ active, onClick, icon: Icon, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm ${
+        active ? "border-cyber bg-cyber/15 text-cyber" : "border-line bg-ink text-slate-300 hover:border-cyber/60"
+      }`}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
   );
 }
 
@@ -269,13 +369,47 @@ function RiskPanel({ result }) {
         <div className="mt-5 grid w-full grid-cols-2 gap-2 text-sm">
           <Metric label="Cache" value={result?.cache_hit ? "HIT" : "MISS"} />
           <Metric label="Hash" value={result?.content_hash ? result.content_hash.slice(0, 8) : "pending"} />
+          <Metric label="Files" value={result?.scanned_files ?? 0} />
+          <Metric label="Public" value={result?.public_exposure_count ?? 0} />
         </div>
       </div>
     </div>
   );
 }
 
+function RecommendationCard({ recommendation }) {
+  return (
+    <article className="col-span-full rounded-lg border border-cyber/35 bg-cyber/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-semibold text-cyber">Recommended Fix Plan</h3>
+        <span className={`rounded-md border px-2 py-1 text-xs ${levels[recommendation.priority] || levels.LOW}`}>{recommendation.priority}</span>
+      </div>
+      <p className="mt-2 text-sm text-slate-200">{recommendation.summary}</p>
+      {recommendation.exposed_addresses?.length > 0 && (
+        <div className="mt-3 rounded-md border border-line bg-ink/70 p-3">
+          <div className="text-xs uppercase text-slate-500">Affected addresses</div>
+          <div className="mt-2 grid gap-1">
+            {recommendation.exposed_addresses.map((address) => (
+              <code key={address} className="break-all rounded bg-panel px-2 py-1 text-xs text-slate-300">
+                {address}
+              </code>
+            ))}
+          </div>
+        </div>
+      )}
+      <div className="mt-3 grid gap-2">
+        {recommendation.actions.map((action) => (
+          <p key={action} className="text-sm text-slate-300">
+            {action}
+          </p>
+        ))}
+      </div>
+    </article>
+  );
+}
+
 function FindingCard({ finding }) {
+  const address = finding.file_path || finding.source_address || finding.source_name;
   return (
     <article className="rounded-lg border border-line bg-ink/70 p-4">
       <div className="flex items-start justify-between gap-3">
@@ -290,6 +424,15 @@ function FindingCard({ finding }) {
         <span>Score {finding.risk_score}</span>
         <span>{finding.severity}</span>
       </div>
+      {address && (
+        <div className="mt-3 rounded-md border border-line bg-panel/80 p-3">
+          <div className="text-xs uppercase text-slate-500">Specific address</div>
+          <code className="mt-2 block break-all text-xs text-cyber">
+            {address}:{finding.line_number}:{finding.column_start}
+          </code>
+          {finding.public_accessible && <p className="mt-2 text-xs text-alert">Publicly accessible location detected.</p>}
+        </div>
+      )}
       <p className="mt-4 text-sm text-slate-200">{finding.explanation.summary}</p>
       <div className="mt-3 rounded-md border border-line bg-panel/80 p-3">
         <div className="flex items-center gap-2 text-xs uppercase text-slate-500">
