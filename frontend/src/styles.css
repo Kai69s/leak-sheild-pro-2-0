@@ -239,112 +239,193 @@ button {
 
 .orbit-stage {
   position: relative;
-  min-height: 560px;
+  min-height: 620px;
   display: grid;
   place-items: center;
+  isolation: isolate;
 }
 
 .orbit-sphere {
   --orbit-color: #67e8f9;
   position: relative;
-  width: min(39rem, 82vw);
+  width: min(42rem, 86vw);
   aspect-ratio: 1;
   border-radius: 999px;
-  filter: drop-shadow(0 0 42px color-mix(in srgb, var(--orbit-color), transparent 65%));
+  perspective: 980px;
+  transform-style: preserve-3d;
+  filter: drop-shadow(0 0 46px rgba(0, 74, 255, 0.36));
   animation: floatSphere 6s ease-in-out infinite;
 }
 
 .sphere-core,
-.sphere-grid,
 .orbit-ring,
 .radar-sweep,
-.satellite-dot {
+.equator-beam,
+.core-aperture,
+.deep-halo,
+.satellite-field {
   position: absolute;
   inset: 0;
   border-radius: 999px;
 }
 
+.deep-halo {
+  inset: -14%;
+  background:
+    radial-gradient(circle, rgba(0, 74, 255, 0.15), transparent 48%),
+    radial-gradient(circle at 55% 45%, rgba(103, 232, 249, 0.12), transparent 32%);
+  filter: blur(12px);
+  opacity: 0.9;
+  animation: haloPulse 4.2s ease-in-out infinite;
+}
+
 .sphere-core {
   background:
-    radial-gradient(circle at 45% 35%, rgba(103, 232, 249, 0.18), transparent 25%),
-    radial-gradient(circle, rgba(37, 99, 235, 0.12), rgba(2, 6, 23, 0.04) 62%, transparent 63%);
-  border: 1px solid color-mix(in srgb, var(--orbit-color), transparent 45%);
-  box-shadow: inset 0 0 70px rgba(37, 99, 235, 0.38), inset 0 0 20px rgba(103, 232, 249, 0.22);
+    radial-gradient(circle at 54% 44%, rgba(0, 48, 190, 0.62), rgba(0, 20, 84, 0.36) 24%, rgba(2, 6, 23, 0.05) 58%, transparent 63%),
+    radial-gradient(circle at 46% 46%, rgba(103, 232, 249, 0.16), transparent 13%);
+  border: 1px solid rgba(0, 82, 255, 0.36);
+  box-shadow:
+    inset 0 0 90px rgba(0, 74, 255, 0.6),
+    inset 0 0 26px rgba(103, 232, 249, 0.22),
+    0 0 80px rgba(0, 74, 255, 0.2);
+  transform-style: preserve-3d;
 }
 
-.sphere-grid {
-  background:
-    repeating-linear-gradient(23deg, transparent 0 13px, color-mix(in srgb, var(--orbit-color), transparent 62%) 14px 15px),
-    repeating-linear-gradient(117deg, transparent 0 17px, rgba(59, 130, 246, 0.36) 18px 19px);
-  mask-image: radial-gradient(circle, black 61%, transparent 62%);
+.wireframe-shell {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  transform-style: preserve-3d;
+  animation: globeSpin 16s linear infinite;
+}
+
+.meridian,
+.latitude,
+.mesh-layer {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.meridian {
+  border: 1px solid rgba(0, 87, 255, 0.72);
+  box-shadow: inset 0 0 8px rgba(0, 87, 255, 0.12);
+  transform: rotateY(calc(var(--i) * 12.85deg)) rotateZ(calc(var(--i) * 3deg));
+}
+
+.latitude {
+  border: 1px solid rgba(0, 87, 255, 0.56);
+  transform:
+    rotateX(76deg)
+    translateZ(calc((var(--i) - 4) * 2.15rem))
+    scale(calc(1 - max((var(--i) - 4), (4 - var(--i))) * 0.095));
+  opacity: 0.82;
+}
+
+.mesh-layer {
   opacity: 0.78;
+  mask-image: radial-gradient(circle, black 60%, transparent 61%);
 }
 
-.sphere-grid-a {
-  animation: rotateSlow 25s linear infinite;
+.mesh-layer-a {
+  background:
+    repeating-linear-gradient(25deg, transparent 0 9px, rgba(0, 87, 255, 0.72) 10px 11px),
+    repeating-linear-gradient(119deg, transparent 0 15px, rgba(0, 87, 255, 0.5) 16px 17px);
+  animation: meshDrift 22s linear infinite;
 }
 
-.sphere-grid-b {
-  transform: rotate(90deg) scaleX(0.58);
-  animation: rotateSlow 18s linear infinite reverse;
+.mesh-layer-b {
+  background:
+    repeating-linear-gradient(62deg, transparent 0 13px, rgba(21, 94, 239, 0.58) 14px 15px),
+    repeating-linear-gradient(151deg, transparent 0 19px, rgba(59, 130, 246, 0.42) 20px 21px);
+  transform: rotate(18deg) scale(0.98);
+  animation: meshDrift 18s linear infinite reverse;
+}
+
+.mesh-layer-c {
+  background:
+    radial-gradient(circle at center, transparent 0 12%, rgba(0, 87, 255, 0.55) 12.5% 13%, transparent 13.5% 100%),
+    radial-gradient(circle at center, transparent 0 28%, rgba(0, 87, 255, 0.38) 28.5% 29%, transparent 29.5% 100%),
+    radial-gradient(circle at center, transparent 0 44%, rgba(0, 87, 255, 0.42) 44.5% 45%, transparent 45.5% 100%);
+  animation: rotateSlow 20s linear infinite;
 }
 
 .orbit-ring {
-  border: 1px solid rgba(103, 232, 249, 0.62);
-  transform: rotate(-14deg) scaleX(1.35) scaleY(0.34);
+  border: 1px solid rgba(180, 242, 255, 0.62);
+  box-shadow: 0 0 12px rgba(103, 232, 249, 0.18);
+  transform: rotate(-12deg) scaleX(1.42) scaleY(0.33);
+  z-index: 4;
 }
 
 .orbit-ring-b {
-  border-color: rgba(251, 113, 133, 0.52);
-  transform: rotate(72deg) scaleX(1.18) scaleY(0.45);
-  animation: pulseRing 3s ease-in-out infinite;
+  border-color: rgba(244, 63, 94, 0.72);
+  transform: rotate(-47deg) scaleX(0.98) scaleY(1.42);
+  animation: ringOrbitRed 8s ease-in-out infinite;
+}
+
+.orbit-ring-c {
+  border-color: rgba(125, 211, 252, 0.42);
+  transform: rotate(12deg) scaleX(1.55) scaleY(0.26);
+  opacity: 0.65;
+  animation: pulseRing 4s ease-in-out infinite;
+}
+
+.orbit-ring-d {
+  border-color: rgba(244, 63, 94, 0.42);
+  transform: rotate(74deg) scaleX(1.18) scaleY(0.47);
+  opacity: 0.72;
+  animation: ringOrbitBlue 10s ease-in-out infinite;
 }
 
 .radar-sweep {
-  background: conic-gradient(from 0deg, transparent 0deg, color-mix(in srgb, var(--orbit-color), transparent 70%) 34deg, transparent 70deg);
-  opacity: 0.52;
-  animation: rotateSlow 4.5s linear infinite;
+  background: conic-gradient(from 0deg, transparent 0deg, rgba(103, 232, 249, 0.28) 18deg, rgba(0, 87, 255, 0.12) 42deg, transparent 66deg);
+  opacity: 0.48;
+  animation: rotateSlow 4s linear infinite;
+  z-index: 5;
+}
+
+.equator-beam {
+  inset: 48% -18% auto -18%;
+  height: 1px;
+  border-radius: 0;
+  background: linear-gradient(90deg, transparent, rgba(165, 243, 252, 0.8), rgba(0, 87, 255, 0.45), transparent);
+  transform: rotate(-9deg);
+  box-shadow: 0 0 18px rgba(103, 232, 249, 0.42);
+  z-index: 6;
+}
+
+.core-aperture {
+  inset: 45%;
+  background: radial-gradient(circle, rgba(125, 211, 252, 0.92), rgba(0, 87, 255, 0.45) 34%, transparent 70%);
+  filter: blur(1px);
+  box-shadow: 0 0 30px rgba(0, 87, 255, 0.78);
+  animation: aperturePulse 1.8s ease-in-out infinite;
+  z-index: 7;
+}
+
+.satellite-field {
+  inset: -8%;
+  z-index: 8;
+  animation: counterSpin 28s linear infinite;
 }
 
 .satellite-dot {
-  width: 0.65rem;
-  height: 0.65rem;
-  inset: auto;
-  background: var(--orbit-color);
-  box-shadow: 0 0 22px var(--orbit-color);
+  position: absolute;
+  width: calc(0.25rem + (var(--i) % 4) * 0.12rem);
+  height: calc(0.25rem + (var(--i) % 4) * 0.12rem);
+  border-radius: 999px;
+  left: calc(50% + cos(calc(var(--i) * 41deg)) * 48%);
+  top: calc(50% + sin(calc(var(--i) * 41deg)) * 48%);
+  background: color-mix(in srgb, var(--orbit-color), white 38%);
+  box-shadow: 0 0 18px rgba(186, 230, 253, 0.8);
+  animation: satelliteBlink calc(1.4s + (var(--i) % 5) * 0.35s) ease-in-out infinite;
 }
 
-.dot-a {
-  left: 14%;
-  top: 28%;
-  animation: blink 1.8s ease-in-out infinite;
-}
-
-.dot-b {
-  right: 16%;
-  top: 36%;
-  width: 0.95rem;
-  height: 0.95rem;
-  animation: blink 2.4s ease-in-out infinite;
-}
-
-.dot-c {
-  left: 35%;
-  bottom: 11%;
-  background: var(--rose);
-}
-
-.dot-d {
-  right: 32%;
-  bottom: 22%;
-}
-
-.dot-e {
-  left: 54%;
-  top: 16%;
-  width: 0.45rem;
-  height: 0.45rem;
-  background: #fda4af;
+.satellite-dot:nth-child(5n),
+.satellite-dot:nth-child(11n) {
+  background: #fb3f66;
+  box-shadow: 0 0 18px rgba(251, 63, 102, 0.82);
 }
 
 .orbit-sphere-hot .sphere-core {
@@ -353,7 +434,7 @@ button {
 
 .floating-card {
   position: absolute;
-  min-width: 18rem;
+  min-width: 21rem;
   border: 1px solid rgba(148, 163, 184, 0.24);
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.88), rgba(8, 13, 21, 0.76));
   padding: 1.25rem;
@@ -376,13 +457,13 @@ button {
 }
 
 .floating-card-a {
-  left: 2%;
-  top: 28%;
+  left: -10%;
+  top: 24%;
 }
 
 .floating-card-b {
-  right: 0;
-  bottom: 14%;
+  right: -7%;
+  bottom: 9%;
   border-color: rgba(251, 113, 133, 0.34);
 }
 
@@ -839,6 +920,26 @@ button {
   }
 }
 
+@keyframes globeSpin {
+  0% {
+    transform: rotateX(62deg) rotateZ(-18deg) rotateY(0deg);
+  }
+  100% {
+    transform: rotateX(62deg) rotateZ(-18deg) rotateY(360deg);
+  }
+}
+
+@keyframes meshDrift {
+  0% {
+    background-position: 0 0, 0 0;
+    transform: rotate(0deg);
+  }
+  100% {
+    background-position: 180px 120px, -160px 220px;
+    transform: rotate(360deg);
+  }
+}
+
 @keyframes floatSphere {
   0%,
   100% {
@@ -846,6 +947,18 @@ button {
   }
   50% {
     transform: translateY(-16px) rotate(1deg);
+  }
+}
+
+@keyframes haloPulse {
+  0%,
+  100% {
+    opacity: 0.58;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
   }
 }
 
@@ -859,6 +972,26 @@ button {
   }
 }
 
+@keyframes ringOrbitRed {
+  0%,
+  100% {
+    transform: rotate(-47deg) scaleX(0.98) scaleY(1.42);
+  }
+  50% {
+    transform: rotate(-38deg) scaleX(1.05) scaleY(1.35);
+  }
+}
+
+@keyframes ringOrbitBlue {
+  0%,
+  100% {
+    transform: rotate(74deg) scaleX(1.18) scaleY(0.47);
+  }
+  50% {
+    transform: rotate(66deg) scaleX(1.27) scaleY(0.42);
+  }
+}
+
 @keyframes blink {
   0%,
   100% {
@@ -868,6 +1001,36 @@ button {
   50% {
     opacity: 1;
     transform: scale(1.25);
+  }
+}
+
+@keyframes satelliteBlink {
+  0%,
+  100% {
+    opacity: 0.42;
+    filter: blur(0);
+  }
+  50% {
+    opacity: 1;
+    filter: blur(0.2px);
+  }
+}
+
+@keyframes counterSpin {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes aperturePulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2);
   }
 }
 
@@ -971,4 +1134,3 @@ button {
     grid-template-columns: 1fr;
   }
 }
-

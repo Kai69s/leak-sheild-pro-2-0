@@ -357,19 +357,36 @@ function ModeButton({ active, onClick, icon: Icon, label }) {
 function OrbitSphere({ result, loading }) {
   const level = result?.overall_level ?? "LOW";
   const color = riskColor(level);
+  const satellites = Array.from({ length: 26 }, (_, index) => index);
+  const meridians = Array.from({ length: 14 }, (_, index) => index);
+  const latitudes = Array.from({ length: 9 }, (_, index) => index);
   return (
     <div className={`orbit-sphere ${loading ? "orbit-sphere-hot" : ""}`} style={{ "--orbit-color": color }}>
+      <div className="deep-halo" />
       <div className="sphere-core" />
-      <div className="sphere-grid sphere-grid-a" />
-      <div className="sphere-grid sphere-grid-b" />
+      <div className="wireframe-shell">
+        {meridians.map((item) => (
+          <span key={`m-${item}`} className="meridian" style={{ "--i": item }} />
+        ))}
+        {latitudes.map((item) => (
+          <span key={`l-${item}`} className="latitude" style={{ "--i": item }} />
+        ))}
+        <span className="mesh-layer mesh-layer-a" />
+        <span className="mesh-layer mesh-layer-b" />
+        <span className="mesh-layer mesh-layer-c" />
+      </div>
       <div className="orbit-ring orbit-ring-a" />
       <div className="orbit-ring orbit-ring-b" />
+      <div className="orbit-ring orbit-ring-c" />
+      <div className="orbit-ring orbit-ring-d" />
       <div className="radar-sweep" />
-      <div className="satellite-dot dot-a" />
-      <div className="satellite-dot dot-b" />
-      <div className="satellite-dot dot-c" />
-      <div className="satellite-dot dot-d" />
-      <div className="satellite-dot dot-e" />
+      <div className="equator-beam" />
+      <div className="core-aperture" />
+      <div className="satellite-field">
+        {satellites.map((item) => (
+          <span key={item} className="satellite-dot" style={{ "--i": item }} />
+        ))}
+      </div>
     </div>
   );
 }
