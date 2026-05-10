@@ -390,6 +390,7 @@ function RiskPanel({ result }) {
         <Metric label="Findings" value={result?.finding_count ?? 0} />
         <Metric label="Public" value={result?.public_exposure_count ?? 0} />
         <Metric label="Files" value={result?.scanned_files ?? 0} />
+        <Metric label="URLs" value={result?.scanned_addresses?.length ?? 0} />
         <Metric label="Hash" value={result?.content_hash ? result.content_hash.slice(0, 8) : "pending"} />
       </div>
     </div>
@@ -450,7 +451,7 @@ function FindingCard({ finding }) {
       <div className="finding-metrics">
         <span>Line {finding.line_number}</span>
         <span>Score {finding.risk_score}</span>
-        <span>{finding.severity}</span>
+        <span>{finding.confidence ? `${Math.round(finding.confidence * 100)}% conf` : finding.severity}</span>
       </div>
       {address && (
         <div className="address-panel">
