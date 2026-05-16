@@ -882,6 +882,38 @@ button {
   scrollbar-color: #334155 #0f172a;
 }
 
+.mission-shell::before,
+.scanline,
+.hero-copy,
+.orbit-sphere,
+.wireframe-shell,
+.mesh-layer,
+.orbit-ring,
+.radar-sweep,
+.core-aperture,
+.satellite-field,
+.satellite-dot,
+.floating-card,
+.risk-reactor,
+.mission-panel::before {
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+.orbit-stage,
+.mission-panel,
+.floating-card,
+.finding-card,
+.recommendation-card {
+  contain: paint;
+}
+
+.analysis-grid,
+.ops-grid {
+  content-visibility: auto;
+  contain-intrinsic-size: 900px;
+}
+
 @keyframes scanline {
   0% {
     transform: translateY(-45vh);
