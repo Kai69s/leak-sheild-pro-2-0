@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -38,10 +38,6 @@ const levels = {
   HIGH: "text-orange-200 border-orange-300/40 bg-orange-300/10",
   CRITICAL: "text-rose-200 border-rose-300/50 bg-rose-400/10"
 };
-
-const orbitSatellites = Array.from({ length: 26 }, (_, index) => index);
-const orbitMeridians = Array.from({ length: 14 }, (_, index) => index);
-const orbitLatitudes = Array.from({ length: 9 }, (_, index) => index);
 
 function riskColor(level) {
   return {
@@ -202,7 +198,7 @@ export default function App() {
           </div>
 
           <div className="orbit-stage">
-            <MemoOrbitSphere result={result} loading={loading} />
+            <OrbitSphere result={result} loading={loading} />
             <div className="floating-card floating-card-a">
               <div className="mono-label text-cyan-200">ACTIVE SCAN</div>
               <strong>{result?.source_name ?? "No target locked"}</strong>
@@ -300,7 +296,7 @@ export default function App() {
         </section>
 
         <section className="analysis-grid">
-          <MemoRiskPanel result={result} />
+          <RiskPanel result={result} />
           <div className="mission-panel">
             <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
               <PanelHeader icon={KeyRound} title="Exposure Findings" code="INTEL-22" compact />
@@ -359,15 +355,18 @@ function ModeButton({ active, onClick, icon: Icon, label }) {
 function OrbitSphere({ result, loading }) {
   const level = result?.overall_level ?? "LOW";
   const color = riskColor(level);
+  const satellites = Array.from({ length: 26 }, (_, index) => index);
+  const meridians = Array.from({ length: 14 }, (_, index) => index);
+  const latitudes = Array.from({ length: 9 }, (_, index) => index);
   return (
     <div className={`orbit-sphere ${loading ? "orbit-sphere-hot" : ""}`} style={{ "--orbit-color": color }}>
       <div className="deep-halo" />
       <div className="sphere-core" />
       <div className="wireframe-shell">
-        {orbitMeridians.map((item) => (
+        {meridians.map((item) => (
           <span key={`m-${item}`} className="meridian" style={{ "--i": item }} />
         ))}
-        {orbitLatitudes.map((item) => (
+        {latitudes.map((item) => (
           <span key={`l-${item}`} className="latitude" style={{ "--i": item }} />
         ))}
         <span className="mesh-layer mesh-layer-a" />
@@ -382,15 +381,13 @@ function OrbitSphere({ result, loading }) {
       <div className="equator-beam" />
       <div className="core-aperture" />
       <div className="satellite-field">
-        {orbitSatellites.map((item) => (
+        {satellites.map((item) => (
           <span key={item} className="satellite-dot" style={{ "--i": item }} />
         ))}
       </div>
     </div>
   );
 }
-
-const MemoOrbitSphere = memo(OrbitSphere);
 
 function RiskPanel({ result }) {
   const score = result?.overall_score ?? 0;
@@ -414,8 +411,6 @@ function RiskPanel({ result }) {
     </div>
   );
 }
-
-const MemoRiskPanel = memo(RiskPanel);
 
 function Metric({ label, value }) {
   return (
