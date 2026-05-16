@@ -15,7 +15,6 @@ import {
   Link2,
   Loader2,
   LockKeyhole,
-  RadioTower,
   RefreshCw,
   ScanLine,
   Search,
@@ -167,7 +166,6 @@ export default function App() {
             </div>
           </div>
           <div className="hidden items-center gap-3 lg:flex">
-            <TelemetryPill icon={RadioTower} label="Vercel Link" value="PUBLIC" tone="cyan" />
             <TelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
             <TelemetryPill icon={ShieldAlert} label="Risk" value={result?.overall_level ?? "STANDBY"} tone="red" />
           </div>
