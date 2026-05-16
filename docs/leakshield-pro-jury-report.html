@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LeakShield Pro Jury Report</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 15mm 18mm 15mm;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #172033;
+      background: #eef3f8;
+      font-family: Arial, Helvetica, sans-serif;
+      line-height: 1.55;
+      counter-reset: page;
+    }
+    body::before {
+      content: "Made By Mustafa Ahmed";
+      position: fixed;
+      top: 47%;
+      left: 50%;
+      z-index: 0;
+      transform: translate(-50%, -50%) rotate(-32deg);
+      color: rgba(24, 68, 115, 0.075);
+      font-size: 56px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    .page {
+      position: relative;
+      z-index: 1;
+      min-height: 260mm;
+      padding: 0;
+      page-break-after: always;
+    }
+    .cover {
+      min-height: 260mm;
+      padding: 30mm 16mm 20mm;
+      color: white;
+      background:
+        linear-gradient(135deg, rgba(7, 18, 39, 0.96), rgba(17, 42, 71, 0.92)),
+        radial-gradient(circle at 80% 20%, rgba(103, 232, 249, 0.34), transparent 30%);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .cover h1 {
+      margin: 16mm 0 0;
+      font-size: 48px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    .cover h2 {
+      margin: 8px 0 0;
+      color: #9de7f4;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .cover .tag {
+      display: inline-block;
+      border: 1px solid rgba(157, 231, 244, 0.65);
+      padding: 8px 12px;
+      color: #cffafe;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+    .cover .meta {
+      margin-top: 26mm;
+      display: grid;
+      gap: 10px;
+      max-width: 420px;
+      color: #d6e4f0;
+      font-size: 14px;
+    }
+    .cover .author {
+      margin-top: 42mm;
+      font-size: 18px;
+      color: #ffffff;
+      font-weight: 700;
+    }
+    header.report-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      margin-bottom: 18px;
+      border-bottom: 2px solid #c9d7e6;
+      color: #526173;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    h1, h2, h3 { color: #0b1f38; line-height: 1.18; }
+    h1 { font-size: 30px; margin: 0 0 16px; }
+    h2 { font-size: 22px; margin: 24px 0 8px; }
+    h3 { font-size: 16px; margin: 16px 0 6px; }
+    p { margin: 0 0 10px; }
+    .lead { color: #31465d; font-size: 15px; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .card {
+      background: rgba(255, 255, 255, 0.86);
+      border: 1px solid #d4e0ed;
+      border-radius: 8px;
+      padding: 14px;
+      box-shadow: 0 8px 22px rgba(14, 42, 71, 0.07);
+    }
+    .accent {
+      border-left: 5px solid #168aad;
+    }
+    ul, ol { margin-top: 6px; padding-left: 20px; }
+    li { margin-bottom: 5px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10px 0 16px;
+      font-size: 11.5px;
+      background: white;
+    }
+    th {
+      color: #0b1f38;
+      background: #dceaf5;
+      text-align: left;
+      font-weight: 700;
+    }
+    th, td {
+      border: 1px solid #c8d8e6;
+      padding: 7px 8px;
+      vertical-align: top;
+    }
+    code, pre {
+      font-family: Consolas, "Liberation Mono", monospace;
+      font-size: 11px;
+      color: #112c46;
+    }
+    pre {
+      white-space: pre-wrap;
+      background: #0b1728;
+      color: #d7eef7;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #1d3957;
+    }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: #e7f6fb;
+      border: 1px solid #bee9f5;
+      color: #07546a;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .critical { color: #8f1230; font-weight: 700; }
+    .high { color: #a14505; font-weight: 700; }
+    .medium { color: #7a5a00; font-weight: 700; }
+    .diagram {
+      background: #071827;
+      color: #dff8ff;
+      border-radius: 10px;
+      padding: 14px;
+      font-family: Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .small { color: #64748b; font-size: 11px; }
+    .no-break { break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <section class="page cover">
+    <div class="tag">Professional Jury Submission Report</div>
+    <h1>LeakShield Pro</h1>
+    <h2>DevSecOps Secret Detection, Risk Scoring & Public Exposure Analysis System</h2>
+    <div class="meta">
+      <div><strong>Project Category:</strong> Cybersecurity / DevSecOps / Full-Stack Security Tool</div>
+      <div><strong>Prepared For:</strong> Academic Jury Evaluation</div>
+      <div><strong>Deployment:</strong> Vercel frontend and serverless scanner, Docker-ready backend stack</div>
+      <div><strong>Core Purpose:</strong> Detect leaked credentials before attackers abuse them</div>
+    </div>
+    <div class="author">Made By Mustafa Ahmed</div>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Executive Summary</span></header>
+    <h1>1. Executive Summary</h1>
+    <p class="lead">LeakShield Pro is a cybersecurity application designed to identify exposed secrets in source code, configuration files, deployment artifacts, public websites, and DevOps text. It combines a professional React dashboard with scanning logic, risk scoring, explanations, audit-friendly storage, caching, and deployment support.</p>
+    <div class="grid-2">
+      <div class="card accent"><h3>What It Does</h3><p>It scans pasted text, uploaded project folders, or public website assets and returns concrete findings such as leaked API keys, passwords, JWTs, database URLs, cloud keys, GitHub tokens, Stripe keys, Slack tokens, and private keys.</p></div>
+      <div class="card accent"><h3>Why It Matters</h3><p>Exposed secrets are one of the fastest ways for attackers to compromise accounts, databases, cloud infrastructure, payment systems, internal APIs, and CI/CD pipelines.</p></div>
+      <div class="card"><h3>How It Helps</h3><p>The tool does not only say “secret found.” It classifies the secret, calculates risk, shows the exact line/address, explains the attacker impact, and gives a remediation plan.</p></div>
+      <div class="card"><h3>Professional Value</h3><p>The project demonstrates secure engineering, full-stack architecture, risk modeling, deterministic security explanations, serverless deployment, and future AI extensibility.</p></div>
+    </div>
+    <h2>Key Outcome</h2>
+    <p>LeakShield Pro turns raw code or public assets into actionable security intelligence. This makes it suitable for pre-commit review, deployment checks, public website exposure checks, and academic demonstration of real-world DevSecOps principles.</p>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Problem & Objectives</span></header>
+    <h1>2. Problem Statement and Objectives</h1>
+    <h2>Problem Statement</h2>
+    <p>Modern applications often depend on API keys, cloud credentials, database passwords, tokens, private keys, and third-party service secrets. These values are sometimes accidentally committed to GitHub, copied into environment files, included in JavaScript bundles, printed in CI logs, or exposed through public configuration endpoints.</p>
+    <p>Once a credential becomes public, an attacker can use it directly or combine it with other exposed data to access private systems. The impact can include cloud billing abuse, database theft, account takeover, source-code compromise, fraudulent payments, phishing, and data loss.</p>
+    <h2>Project Objectives</h2>
+    <ul>
+      <li>Detect multiple classes of real-world leaked secrets.</li>
+      <li>Support text, project folder, and public website scanning modes.</li>
+      <li>Show exact evidence: file/address, line number, column, preview, and safe context.</li>
+      <li>Hash and obfuscate sensitive values instead of storing plaintext secrets.</li>
+      <li>Score risk from 0 to 100 and map it to LOW, MEDIUM, HIGH, or CRITICAL.</li>
+      <li>Explain attacker impact, real-world consequences, and remediation steps.</li>
+      <li>Provide a dashboard that a security analyst or developer can actually use.</li>
+      <li>Remain extensible for future AI-based explanation enrichment.</li>
+    </ul>
+    <div class="card accent"><h3>Jury Defense Point</h3><p>The project is not just a regex demo. It includes a complete workflow: acquisition, scanning, deduplication, risk modeling, remediation guidance, persistence, caching, browser history, public deployment, and documentation.</p></div>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Architecture</span></header>
+    <h1>3. System Architecture</h1>
+    <div class="diagram">User / Developer
+  -> React Dashboard
+  -> API Adapter
+  -> Vercel Serverless API or FastAPI Backend
+  -> Scan Service / Scanner
+  -> Detection Rules
+  -> Risk Engine
+  -> Explanation Engine
+  -> Cache + Database / Browser History
+  -> Structured Findings
+  -> Dashboard Risk Report</div>
+    <h2>Architecture Meaning</h2>
+    <p>The project is separated into presentation, API communication, scanning logic, risk scoring, explanation generation, storage, and deployment layers. This separation improves maintainability because each layer has one clear responsibility.</p>
+    <table>
+      <tr><th>Layer</th><th>Responsibility</th><th>Impact</th></tr>
+      <tr><td>React Dashboard</td><td>User input, scan mode selection, folder upload, website URL submission, visual results, history, filtering.</td><td>Turns complex security output into understandable evidence for users and jury evaluators.</td></tr>
+      <tr><td>API Layer</td><td>Receives scan requests and returns structured JSON responses.</td><td>Creates a clean boundary between UI and scanning logic.</td></tr>
+      <tr><td>Detection Engine</td><td>Applies rule patterns and extracts potential secrets.</td><td>Identifies dangerous data before deployment or after public exposure.</td></tr>
+      <tr><td>Risk Engine</td><td>Scores each finding based on severity, confidence, public context, and secret type.</td><td>Helps prioritize the most dangerous leaks first.</td></tr>
+      <tr><td>Explanation Engine</td><td>Converts technical findings into human-readable impact and remediation.</td><td>Makes the report useful for developers, security reviewers, and non-specialist judges.</td></tr>
+      <tr><td>Storage/Cache</td><td>Stores audit records and avoids duplicate repeated scanning.</td><td>Supports performance, review history, and repeatability.</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Code Responsibilities</span></header>
+    <h1>4. What Each Important File Means</h1>
+    <p class="lead">The table below explains the purpose of the major code files and how each one affects the system.</p>
+    <table>
+      <tr><th>File</th><th>Meaning and Impact</th></tr>
+      <tr><td><code>frontend/src/App.jsx</code></td><td>Main React dashboard. It controls scan mode, user input, upload flow, history, result rendering, risk panels, and finding cards.</td></tr>
+<tr><td><code>frontend/src/api.js</code></td><td>Browser API adapter. It sends scan requests, reads/writes local history, and falls back gracefully when the backend is unavailable.</td></tr>
+<tr><td><code>api/scans.js</code></td><td>Vercel serverless scanning endpoint. It powers the deployed demo with text, folder, and public website scanning.</td></tr>
+<tr><td><code>api/scans/[id].js</code></td><td>Vercel demo history endpoint. It explains that detailed history is stored in the browser for the free deployment.</td></tr>
+<tr><td><code>backend/app/main.py</code></td><td>FastAPI application entrypoint. It initializes database/cache connections, configures CORS, exposes health checks, and mounts API routes.</td></tr>
+<tr><td><code>backend/app/api/routes.py</code></td><td>REST API route layer. It exposes scan creation, scan listing, and scan detail loading while delegating business logic to ScanService.</td></tr>
+<tr><td><code>backend/app/services/scan_service.py</code></td><td>Backend orchestration layer. It validates payload size, hashes content, checks cache, runs detection, scores risk, stores results, and returns response models.</td></tr>
+<tr><td><code>backend/app/engines/detection/rules.py</code></td><td>Rule catalog. It defines secret signatures, severity, confidence, attacker impact, consequences, and remediation text.</td></tr>
+<tr><td><code>backend/app/engines/detection/scanner.py</code></td><td>Detection engine. It executes rules, deduplicates matches, hashes and obfuscates values, calculates line/column positions, and extracts safe context.</td></tr>
+<tr><td><code>backend/app/engines/risk.py</code></td><td>Risk engine. It converts findings into 0-100 scores and LOW/MEDIUM/HIGH/CRITICAL labels using severity, confidence, context, and secret type.</td></tr>
+<tr><td><code>backend/app/engines/explanation.py</code></td><td>Explanation engine. It turns rule metadata and risk adjustments into clear security explanations.</td></tr>
+<tr><td><code>backend/app/models.py</code></td><td>Database schema. It defines scans and findings tables with audit metadata, indexes, hashes, previews, and JSON explanations.</td></tr>
+<tr><td><code>backend/app/database.py</code></td><td>Async SQLAlchemy setup. It creates the engine, session factory, dependency, and automatic table initialization.</td></tr>
+<tr><td><code>backend/app/cache.py</code></td><td>Redis cache adapter. It stores and retrieves repeated scan responses as JSON to reduce duplicate work.</td></tr>
+<tr><td><code>backend/app/schemas.py</code></td><td>Pydantic contracts. It defines request/response shapes for validation and stable API communication.</td></tr>
+<tr><td><code>backend/app/config.py</code></td><td>Environment configuration. It centralizes database URL, Redis URL, CORS origins, cache TTL, and max scan size.</td></tr>
+<tr><td><code>backend/app/optional_ai.py</code></td><td>Future extension point. It allows approved AI enrichment without making the core scanner dependent on external models.</td></tr>
+<tr><td><code>docker-compose.yml</code></td><td>Local multi-service deployment. It runs PostgreSQL, Redis, backend, and frontend together for demonstration and testing.</td></tr>
+<tr><td><code>vercel.json</code></td><td>Vercel deployment config. It builds the frontend and routes API/frontend paths for the hosted demo.</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Backend Flow</span></header>
+    <h1>5. Backend Code Flow</h1>
+    <h2>FastAPI Application</h2>
+    <p><code>backend/app/main.py</code> creates the FastAPI app, initializes database and Redis connections during lifespan startup, applies CORS settings, exposes <code>/health</code>, and mounts the API router under <code>/api</code>. This gives the backend a clean lifecycle and makes it production-friendly.</p>
+    <h2>REST Routes</h2>
+    <p><code>backend/app/api/routes.py</code> exposes three main security operations: create a scan, list scan history, and load a previous scan by ID. The route file is intentionally thin; it validates HTTP-level behavior and delegates the real logic to <code>ScanService</code>.</p>
+    <h2>Scan Service</h2>
+    <p><code>ScanService</code> is the orchestration layer. It checks payload size, hashes the content, builds a cache key, checks Redis, runs detection rules, scores findings, generates explanations, persists data, refreshes database models, caches the response, and returns a structured scan report.</p>
+    <pre>POST /api/scans
+  -> validate request
+  -> hash content and metadata
+  -> check Redis cache
+  -> run DetectionEngine
+  -> score each finding with RiskEngine
+  -> explain each finding
+  -> save Scan + Finding records
+  -> cache response
+  -> return JSON to dashboard</pre>
+    <div class="card accent"><h3>Security Impact</h3><p>The backend stores hashes and obfuscated previews, not raw plaintext secrets. This is important because a security scanner should not become a second place where secrets are leaked.</p></div>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Detection Engine</span></header>
+    <h1>6. Detection Engine and Rule Catalog</h1>
+    <p>The detection engine works by applying rule objects to the provided content. Each rule contains a regex pattern plus security metadata: ID, secret type, severity, confidence, description, attacker impact, consequence, and remediation.</p>
+    <table>
+      <tr><th>Secret Type</th><th>Severity</th><th>Impact</th></tr>
+      <tr><td>AWS Access Key ID</td><td><span class="high">HIGH</span></td><td>Cloud account identification. If paired with a secret key, attackers can access AWS APIs.</td></tr>
+<tr><td>AWS Secret Access Key</td><td><span class="critical">CRITICAL</span></td><td>Direct cloud authentication. Can lead to infrastructure takeover, data theft, and billing abuse.</td></tr>
+<tr><td>GitHub Token</td><td><span class="critical">CRITICAL</span></td><td>Repository and workflow access. Can expose source code or compromise CI/CD pipelines.</td></tr>
+<tr><td>OpenAI API Key</td><td><span class="high">HIGH</span></td><td>API quota and endpoint access. Can create unexpected billing or abusive automated usage.</td></tr>
+<tr><td>Google API Key</td><td><span class="medium">MEDIUM</span></td><td>Google service access. Risk depends on restrictions such as referrer, IP, and API scope.</td></tr>
+<tr><td>Stripe Secret Key</td><td><span class="critical">CRITICAL</span></td><td>Payment platform access. Can affect customer, charge, refund, or transaction operations.</td></tr>
+<tr><td>Slack Token</td><td><span class="high">HIGH</span></td><td>Workspace API access. Can expose messages, users, channels, and integrations.</td></tr>
+<tr><td>SendGrid API Key</td><td><span class="high">HIGH</span></td><td>Email sending access. Can enable spam, phishing, reputation damage, and billing abuse.</td></tr>
+<tr><td>Generic API Key</td><td><span class="medium">MEDIUM</span></td><td>Service identity exposure. Impact depends on the provider and key permissions.</td></tr>
+<tr><td>Password Assignment</td><td><span class="high">HIGH</span></td><td>Hardcoded credential. Can allow login to databases, panels, APIs, or reused accounts.</td></tr>
+<tr><td>Database URL</td><td><span class="critical">CRITICAL</span></td><td>Direct datastore credential. Can expose records, queues, caches, or broker contents.</td></tr>
+<tr><td>Basic Auth URL</td><td><span class="high">HIGH</span></td><td>URL-embedded username/password. Can expose protected endpoints or upstream services.</td></tr>
+<tr><td>Bearer Token</td><td><span class="high">HIGH</span></td><td>Replayable session/API token. Works until expiration or revocation.</td></tr>
+<tr><td>JWT Token</td><td><span class="high">HIGH</span></td><td>Application authorization token. Can impersonate a subject if still valid.</td></tr>
+<tr><td>Private Key</td><td><span class="critical">CRITICAL</span></td><td>Cryptographic identity material. Can affect SSH, TLS, signing, or encrypted data trust.</td></tr>
+    </table>
+    <h2>Detection Process</h2>
+    <ol>
+      <li>Loop through every rule.</li>
+      <li>Find pattern matches in the content.</li>
+      <li>Extract only the actual secret value where possible.</li>
+      <li>Ignore example/dummy placeholders to reduce false positives.</li>
+      <li>Deduplicate findings by rule, value hash, location, and source.</li>
+      <li>Calculate line and column numbers.</li>
+      <li>Generate a safe value preview and context snippet.</li>
+    </ol>
+    <p>This design makes the scanner explainable and extendable: adding a new provider key usually means adding one new rule without changing the whole application.</p>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Risk Model</span></header>
+    <h1>7. Risk Scoring Model</h1>
+    <p>The scoring system converts a detected secret into a practical risk number. The goal is to prioritize what should be fixed first.</p>
+    <table>
+      <tr><th>Severity</th><th>Base Score</th><th>Meaning</th></tr>
+      <tr><td>LOW</td><td>20</td><td>Weak or contextual signal that may still require review.</td></tr>
+      <tr><td>MEDIUM</td><td>45</td><td>Potential credential or service identity exposure.</td></tr>
+      <tr><td>HIGH</td><td>70</td><td>Likely exploitable credential or token.</td></tr>
+      <tr><td>CRITICAL</td><td>88</td><td>Direct authentication material or high-impact platform secret.</td></tr>
+    </table>
+    <h2>Adjustments</h2>
+    <ul>
+      <li><strong>Confidence multiplier:</strong> Rules with higher confidence influence the score more strongly.</li>
+      <li><strong>High-risk context:</strong> Terms such as production, live, public repo, GitHub, exposed, website, or client increase risk.</li>
+      <li><strong>Low-risk context:</strong> Terms such as test, dev, staging, sandbox, local, or mock reduce risk.</li>
+      <li><strong>Direct-authentication secrets:</strong> Private keys, database URLs, AWS secret keys, and Stripe secret keys receive extra risk.</li>
+      <li><strong>Public address:</strong> If a finding appears in a public website asset or sensitive public path, the score increases.</li>
+    </ul>
+    <h2>Risk Levels</h2>
+    <table>
+      <tr><th>Range</th><th>Label</th><th>Action</th></tr>
+      <tr><td>0-34</td><td>LOW</td><td>Review and monitor.</td></tr>
+      <tr><td>35-64</td><td>MEDIUM</td><td>Investigate and rotate if confirmed.</td></tr>
+      <tr><td>65-84</td><td>HIGH</td><td>Rotate quickly and remove exposure.</td></tr>
+      <tr><td>85-100</td><td>CRITICAL</td><td>Immediate revocation, incident review, and redeployment.</td></tr>
+    </table>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Frontend & User Experience</span></header>
+    <h1>8. Frontend Dashboard Explanation</h1>
+    <p>The React dashboard is the analyst console. It presents three acquisition modes: raw text, project folder upload, and public website scanning. It also visualizes risk, displays finding cards, lets the user filter findings, and stores recent scan history in browser local storage.</p>
+    <h2>Key UI Functions</h2>
+    <ul>
+      <li><strong>Text mode:</strong> Useful for environment files, logs, copied code, and quick demos.</li>
+      <li><strong>Folder mode:</strong> Reads multiple local text files, skips binary/media formats, and sends a safe structured payload for scanning.</li>
+      <li><strong>Website mode:</strong> Accepts a public URL and asks the serverless API to fetch HTML and same-origin assets.</li>
+      <li><strong>History:</strong> Saves scan summaries and details in local storage for the deployed Vercel demo.</li>
+      <li><strong>Finding cards:</strong> Show rule ID, secret type, risk badge, score, address, line/column, impact, and remediation.</li>
+    </ul>
+    <div class="card accent"><h3>Impact on Jury Presentation</h3><p>The UI demonstrates that the project is usable, not only technically correct. A reviewer can paste a leak, press one button, and immediately see prioritized cybersecurity evidence.</p></div>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Vercel Serverless API</span></header>
+    <h1>9. Public Deployment and Serverless Scanner</h1>
+    <p>The deployed demo uses <code>api/scans.js</code> as a Vercel serverless endpoint. This makes the website functional on Vercel without requiring the full Docker Compose backend stack during a jury demo.</p>
+    <h2>Serverless Scanner Capabilities</h2>
+    <ul>
+      <li>Supports text, folder, and website scan modes.</li>
+      <li>Includes expanded provider-specific rules such as GitHub, OpenAI, Google, Stripe, Slack, and SendGrid.</li>
+      <li>Skips large binaries and ignored folders like <code>node_modules</code>, <code>.git</code>, <code>dist</code>, and <code>coverage</code>.</li>
+      <li>Fetches public website assets with timeout and concurrency limits.</li>
+      <li>Scans common risky public paths such as <code>/.env</code>, <code>/config.json</code>, <code>/api/env</code>, and source maps.</li>
+      <li>Returns recommendations, public exposure counts, scanned addresses, and skipped addresses.</li>
+    </ul>
+    <h2>Why This Matters</h2>
+    <p>This design makes the online demo self-contained. The jury can open the public link and test scanning behavior immediately, while the backend folder still demonstrates a more complete production architecture with FastAPI, PostgreSQL, and Redis.</p>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Data Storage & Privacy</span></header>
+    <h1>10. Database, Cache, and Privacy Design</h1>
+    <h2>Database Tables</h2>
+    <table>
+      <tr><th>Table</th><th>Purpose</th><th>Important Fields</th></tr>
+      <tr><td><code>scans</code></td><td>Stores one scan summary.</td><td>id, source_name, content_hash, overall_score, overall_level, finding_count, metadata, created_at</td></tr>
+      <tr><td><code>findings</code></td><td>Stores each detected issue.</td><td>rule_id, secret_type, severity, risk_score, value_hash, value_preview, line/column, context_snippet, explanation</td></tr>
+    </table>
+    <h2>Privacy Measures</h2>
+    <ul>
+      <li>Secret values are hashed with SHA-256.</li>
+      <li>Only obfuscated previews are shown, such as <code>abcd...wxyz</code>.</li>
+      <li>Context snippets are escaped before returning to the UI.</li>
+      <li>Cache keys are based on content/metadata hashes to avoid storing raw content in the key.</li>
+      <li>Browser demo history is local to the user’s browser.</li>
+    </ul>
+    <h2>Redis Cache Impact</h2>
+    <p>Redis avoids repeated work by returning a cached scan when the same content and metadata are submitted again. This improves response time and reduces duplicate database writes.</p>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Security Impact</span></header>
+    <h1>11. Security Impact of the Project</h1>
+    <div class="grid-2">
+      <div class="card"><h3>Cloud Security</h3><p>AWS keys, cloud tokens, and private keys can lead to unauthorized infrastructure access. LeakShield highlights these as high or critical risk.</p></div>
+      <div class="card"><h3>Application Security</h3><p>JWTs, bearer tokens, and API keys can let attackers impersonate users or services. The tool shows replay risk and remediation guidance.</p></div>
+      <div class="card"><h3>Database Security</h3><p>Database URLs can expose full data stores. LeakShield treats them as critical because they contain both network location and credentials.</p></div>
+      <div class="card"><h3>CI/CD Security</h3><p>GitHub tokens and source-code leaks can compromise pipelines and supply chains. The scanner treats repository and workflow tokens as critical.</p></div>
+      <div class="card"><h3>Public Website Security</h3><p>Website scanning checks if secrets are visible in public HTML, JavaScript bundles, source maps, or public config endpoints.</p></div>
+      <div class="card"><h3>Operational Response</h3><p>Findings include concrete remediation: revoke, rotate, remove from public files/history, redeploy, and review provider logs.</p></div>
+    </div>
+    <h2>Real-World Example</h2>
+    <p>If a production database URL appears in a public JavaScript bundle, an attacker may obtain the username, password, hostname, and database name. LeakShield flags it as critical, shows the exposed address, recommends rotating database credentials, restricting network access, removing it from public assets, and checking logs for suspicious activity.</p>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Testing & Limitations</span></header>
+    <h1>12. Testing, Limitations, and Future Scope</h1>
+    <h2>Testing</h2>
+    <p>The backend includes a unit test for production password leak detection and risk scoring. The frontend build is validated through Vite, and the deployed Vercel path can be tested by submitting sample text or public URLs.</p>
+    <h2>Known Limitations</h2>
+    <ul>
+      <li>Regex-based detection can produce false positives when random strings resemble secrets.</li>
+      <li>Highly unusual secret formats may be missed until new rules are added.</li>
+      <li>Website scanning is limited by public access, response type, timeout, and same-origin asset discovery.</li>
+      <li>The free Vercel demo stores scan history in the browser rather than a shared production database.</li>
+      <li>Actual incident response still requires provider-side log review and credential revocation.</li>
+    </ul>
+    <h2>Future Scope</h2>
+    <ul>
+      <li>Add more provider-specific rules for Azure, GCP service accounts, Firebase, Supabase, Twilio, Mailgun, and OAuth secrets.</li>
+      <li>Add GitHub pull request scanning and CI/CD release blocking.</li>
+      <li>Add role-based user accounts and team scan history.</li>
+      <li>Add PDF export from scan results.</li>
+      <li>Add optional model API enrichment after redacting actual secret values.</li>
+    </ul>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Optional AI Layer</span></header>
+    <h1>13. Optional AI/API Integration Recommendation</h1>
+    <p>The project already works without AI. This is a strength because the core scanner remains deterministic, explainable, fast, and privacy-aware. However, an external model API can be valuable as an optional enhancement.</p>
+    <h2>Recommended Design</h2>
+    <pre>Detection Engine finds leak
+  -> Secret value is masked/redacted
+  -> Safe context and metadata are sent to model API
+  -> Model improves explanation, summary, and remediation
+  -> Core risk score still comes from deterministic engine</pre>
+    <h2>Why Not Replace the Current Engine?</h2>
+    <ul>
+      <li>Rules are faster and cheaper for exact secret signatures.</li>
+      <li>Rules are explainable and easier to defend in front of a jury.</li>
+      <li>Sending raw secrets to a third-party model can create privacy risk.</li>
+      <li>AI is best used for explanation and prioritization after detection, not as the only detector.</li>
+    </ul>
+    <div class="card accent"><h3>Professional Recommendation</h3><p>Keep the current scanner as the trusted foundation. Add a model API only as a redacted AI analysis layer for richer explanations, report writing, and remediation planning.</p></div>
+  </section>
+
+  <section class="page">
+    <header class="report-head"><span>LeakShield Pro</span><span>Jury Defense Summary</span></header>
+    <h1>14. Jury Defense Summary</h1>
+    <h2>What Makes This Project Strong</h2>
+    <ul>
+      <li>It solves a real cybersecurity problem: accidental secret leakage.</li>
+      <li>It includes both local/full-stack architecture and hosted Vercel demo architecture.</li>
+      <li>It is modular, making new secret rules easy to add.</li>
+      <li>It considers privacy by hashing and obfuscating secret values.</li>
+      <li>It explains attacker impact and remediation, making it practical for real users.</li>
+      <li>It demonstrates frontend, backend, API design, security engineering, deployment, and documentation skills.</li>
+    </ul>
+    <h2>Short Viva Answer</h2>
+    <p><strong>LeakShield Pro detects leaked secrets in code, folders, and public websites. It uses rule-based detection, risk scoring, safe secret handling, and human-readable remediation guidance to help developers remove exposed credentials before attackers exploit them.</strong></p>
+    <h2>Conclusion</h2>
+    <p>LeakShield Pro is a professional DevSecOps security tool that demonstrates practical engineering and cybersecurity awareness. It identifies exposed credentials, explains their real-world impact, prioritizes the highest-risk findings, and gives clear remediation steps. The project is suitable for academic evaluation because it is functional, defensible, extensible, and aligned with real-world secure software development practices.</p>
+    <p class="small">Watermark: Made By Mustafa Ahmed</p>
+  </section>
+</body>
+</html>
