@@ -13,24 +13,10 @@
     body {
       margin: 0;
       color: #172033;
-      background: #eef3f8;
+      background: #ffffff;
       font-family: Arial, Helvetica, sans-serif;
       line-height: 1.55;
       counter-reset: page;
-    }
-    body::before {
-      content: "Made By Mustafa Ahmed";
-      position: fixed;
-      top: 47%;
-      left: 50%;
-      z-index: 0;
-      transform: translate(-50%, -50%) rotate(-32deg);
-      color: rgba(24, 68, 115, 0.075);
-      font-size: 56px;
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      white-space: nowrap;
-      pointer-events: none;
     }
     .page {
       position: relative;
@@ -41,48 +27,57 @@
     }
     .cover {
       min-height: 260mm;
-      padding: 30mm 16mm 20mm;
-      color: white;
-      background:
-        linear-gradient(135deg, rgba(7, 18, 39, 0.96), rgba(17, 42, 71, 0.92)),
-        radial-gradient(circle at 80% 20%, rgba(103, 232, 249, 0.34), transparent 30%);
-      border-radius: 8px;
+      padding: 30mm 18mm 20mm;
+      color: #16233a;
+      background: #ffffff;
+      border: 1px solid #c9d7e6;
       overflow: hidden;
     }
+    .cover::before {
+      content: "";
+      display: block;
+      width: 82px;
+      height: 82px;
+      border: 2px solid #1f5f99;
+      border-radius: 999px;
+      margin-bottom: 18mm;
+    }
     .cover h1 {
-      margin: 16mm 0 0;
-      font-size: 48px;
+      margin: 0;
+      font-size: 42px;
       line-height: 1;
       letter-spacing: 0;
     }
     .cover h2 {
-      margin: 8px 0 0;
-      color: #9de7f4;
-      font-size: 22px;
-      font-weight: 600;
+      margin: 10px 0 0;
+      color: #294868;
+      font-size: 20px;
+      font-weight: 500;
+      max-width: 640px;
     }
     .cover .tag {
       display: inline-block;
-      border: 1px solid rgba(157, 231, 244, 0.65);
+      border: 1px solid #8aa8c6;
       padding: 8px 12px;
-      color: #cffafe;
+      color: #1f5f99;
       font-size: 12px;
       font-weight: 700;
       letter-spacing: 0.12em;
       text-transform: uppercase;
+      margin-bottom: 12mm;
     }
     .cover .meta {
-      margin-top: 26mm;
+      margin-top: 24mm;
       display: grid;
       gap: 10px;
-      max-width: 420px;
-      color: #d6e4f0;
+      max-width: 520px;
+      color: #31465d;
       font-size: 14px;
     }
     .cover .author {
-      margin-top: 42mm;
+      margin-top: 34mm;
       font-size: 18px;
-      color: #ffffff;
+      color: #0b1f38;
       font-weight: 700;
     }
     header.report-head {
@@ -177,6 +172,15 @@
     }
     .small { color: #64748b; font-size: 11px; }
     .no-break { break-inside: avoid; }
+    .closing-credit {
+      margin-top: 24mm;
+      padding-top: 8mm;
+      border-top: 1px solid #c9d7e6;
+      color: #0b1f38;
+      font-size: 15px;
+      font-weight: 700;
+      text-align: right;
+    }
   </style>
 </head>
 <body>
@@ -190,7 +194,6 @@
       <div><strong>Deployment:</strong> Vercel frontend and serverless scanner, Docker-ready backend stack</div>
       <div><strong>Core Purpose:</strong> Detect leaked credentials before attackers abuse them</div>
     </div>
-    <div class="author">Made By Mustafa Ahmed</div>
   </section>
 
   <section class="page">
@@ -495,7 +498,7 @@
     <p><strong>LeakShield Pro detects leaked secrets in code, folders, and public websites. It uses rule-based detection, risk scoring, safe secret handling, and human-readable remediation guidance to help developers remove exposed credentials before attackers exploit them.</strong></p>
     <h2>Conclusion</h2>
     <p>LeakShield Pro is a professional DevSecOps security tool that demonstrates practical engineering and cybersecurity awareness. It identifies exposed credentials, explains their real-world impact, prioritizes the highest-risk findings, and gives clear remediation steps. The project is suitable for academic evaluation because it is functional, defensible, extensible, and aligned with real-world secure software development practices.</p>
-    <p class="small">Watermark: Made By Mustafa Ahmed</p>
+    <p class="closing-credit">Made by Mustafa Ahmed</p>
   </section>
 </body>
 </html>
