@@ -119,6 +119,17 @@ export default function App() {
     }
   }, [refreshHistory]);
 
+  const startScanFromInput = useCallback(
+    (event) => {
+      const tagName = event.target?.tagName;
+      if (event.key !== "Enter" || !["INPUT", "TEXTAREA"].includes(tagName)) return;
+      if (tagName === "TEXTAREA" && event.shiftKey) return;
+      event.preventDefault();
+      scan();
+    },
+    [scan]
+  );
+
   const handleFolderUpload = useCallback(async (event) => {
     const files = Array.from(event.target.files || []);
     setError("");
@@ -165,7 +176,7 @@ export default function App() {
   }, [result, findingFilter]);
 
   return (
-    <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
+    <main className="mission-shell min-h-screen overflow-hidden text-slate-100" onKeyDown={startScanFromInput}>
       <div className="scanline" />
       <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-10">
         <MemoMissionHeader loading={loading} result={result} />
