@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -39,6 +39,10 @@ const levels = {
   CRITICAL: "text-rose-200 border-rose-300/50 bg-rose-400/10"
 };
 
+const orbitSatellites = Array.from({ length: 26 }, (_, index) => index);
+const orbitMeridians = Array.from({ length: 14 }, (_, index) => index);
+const orbitLatitudes = Array.from({ length: 9 }, (_, index) => index);
+
 function riskColor(level) {
   return {
     LOW: "#6ee7f9",
@@ -61,6 +65,9 @@ export default function App() {
   const [findingFilter, setFindingFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const showTextMode = useCallback(() => setScanMode("text"), []);
+  const showFolderMode = useCallback(() => setScanMode("project-folder"), []);
+  const showWebsiteMode = useCallback(() => setScanMode("website"), []);
 
   async function refreshHistory() {
     const items = await listScans({ q: query, riskLevel: riskFilter });
@@ -166,8 +173,8 @@ export default function App() {
             </div>
           </div>
           <div className="hidden items-center gap-3 lg:flex">
-            <TelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
-            <TelemetryPill icon={ShieldAlert} label="Risk" value={result?.overall_level ?? "STANDBY"} tone="red" />
+            <MemoTelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
+            <MemoTelemetryPill icon={ShieldAlert} label="Risk" value={result?.overall_level ?? "STANDBY"} tone="red" />
           </div>
         </header>
 
@@ -198,7 +205,7 @@ export default function App() {
           </div>
 
           <div className="orbit-stage">
-            <OrbitSphere result={result} loading={loading} />
+            <MemoOrbitSphere result={result} loading={loading} />
             <div className="floating-card floating-card-a">
               <div className="mono-label text-cyan-200">ACTIVE SCAN</div>
               <strong>{result?.source_name ?? "No target locked"}</strong>
@@ -214,11 +221,11 @@ export default function App() {
 
         <section className="ops-grid">
           <div className="mission-panel command-panel">
-            <PanelHeader icon={Cpu} title="Threat Acquisition" code="INPUT-01" />
+            <MemoPanelHeader icon={Cpu} title="Threat Acquisition" code="INPUT-01" />
             <div className="mode-rail">
-              <ModeButton active={scanMode === "text"} onClick={() => setScanMode("text")} icon={TerminalSquare} label="Text" />
-              <ModeButton active={scanMode === "project-folder"} onClick={() => setScanMode("project-folder")} icon={FolderOpen} label="Folder" />
-              <ModeButton active={scanMode === "website"} onClick={() => setScanMode("website")} icon={Globe2} label="Website" />
+              <MemoModeButton active={scanMode === "text"} onClick={showTextMode} icon={TerminalSquare} label="Text" />
+              <MemoModeButton active={scanMode === "project-folder"} onClick={showFolderMode} icon={FolderOpen} label="Folder" />
+              <MemoModeButton active={scanMode === "website"} onClick={showWebsiteMode} icon={Globe2} label="Website" />
             </div>
 
             <div className="target-row">
@@ -267,7 +274,7 @@ export default function App() {
           </div>
 
           <aside className="mission-panel">
-            <PanelHeader icon={History} title="Mission Archive" code="HIST-07" />
+            <MemoPanelHeader icon={History} title="Mission Archive" code="HIST-07" />
             <div className="history-filters">
               <div className="field-with-icon">
                 <Search className="h-4 w-4" />
@@ -296,19 +303,19 @@ export default function App() {
         </section>
 
         <section className="analysis-grid">
-          <RiskPanel result={result} />
+          <MemoRiskPanel result={result} />
           <div className="mission-panel">
             <div className="flex flex-col gap-3 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
-              <PanelHeader icon={KeyRound} title="Exposure Findings" code="INTEL-22" compact />
+              <MemoPanelHeader icon={KeyRound} title="Exposure Findings" code="INTEL-22" compact />
               <div className="field-with-icon max-w-sm">
                 <Filter className="h-4 w-4" />
                 <input value={findingFilter} onChange={(event) => setFindingFilter(event.target.value)} placeholder="Filter findings" />
               </div>
             </div>
             <div className="finding-grid">
-              {result?.recommendation && <RecommendationCard recommendation={result.recommendation} />}
+              {result?.recommendation && <MemoRecommendationCard recommendation={result.recommendation} />}
               {filteredFindings.map((finding) => (
-                <FindingCard key={`${finding.rule_id}-${finding.line_number}-${finding.column_start}-${finding.file_path || finding.source_address}`} finding={finding} />
+                <MemoFindingCard key={`${finding.rule_id}-${finding.line_number}-${finding.column_start}-${finding.file_path || finding.source_address}`} finding={finding} />
               ))}
               {!filteredFindings.length && <div className="empty-state col-span-full">Run a scan to populate the forensic evidence deck.</div>}
             </div>
@@ -343,6 +350,9 @@ function TelemetryPill({ icon: Icon, label, value, tone }) {
   );
 }
 
+const MemoPanelHeader = memo(PanelHeader);
+const MemoTelemetryPill = memo(TelemetryPill);
+
 function ModeButton({ active, onClick, icon: Icon, label }) {
   return (
     <button type="button" onClick={onClick} className={`mode-button ${active ? "mode-button-active" : ""}`}>
@@ -352,21 +362,20 @@ function ModeButton({ active, onClick, icon: Icon, label }) {
   );
 }
 
+const MemoModeButton = memo(ModeButton);
+
 function OrbitSphere({ result, loading }) {
   const level = result?.overall_level ?? "LOW";
   const color = riskColor(level);
-  const satellites = Array.from({ length: 26 }, (_, index) => index);
-  const meridians = Array.from({ length: 14 }, (_, index) => index);
-  const latitudes = Array.from({ length: 9 }, (_, index) => index);
   return (
     <div className={`orbit-sphere ${loading ? "orbit-sphere-hot" : ""}`} style={{ "--orbit-color": color }}>
       <div className="deep-halo" />
       <div className="sphere-core" />
       <div className="wireframe-shell">
-        {meridians.map((item) => (
+        {orbitMeridians.map((item) => (
           <span key={`m-${item}`} className="meridian" style={{ "--i": item }} />
         ))}
-        {latitudes.map((item) => (
+        {orbitLatitudes.map((item) => (
           <span key={`l-${item}`} className="latitude" style={{ "--i": item }} />
         ))}
         <span className="mesh-layer mesh-layer-a" />
@@ -381,13 +390,15 @@ function OrbitSphere({ result, loading }) {
       <div className="equator-beam" />
       <div className="core-aperture" />
       <div className="satellite-field">
-        {satellites.map((item) => (
+        {orbitSatellites.map((item) => (
           <span key={item} className="satellite-dot" style={{ "--i": item }} />
         ))}
       </div>
     </div>
   );
 }
+
+const MemoOrbitSphere = memo(OrbitSphere);
 
 function RiskPanel({ result }) {
   const score = result?.overall_score ?? 0;
@@ -402,15 +413,17 @@ function RiskPanel({ result }) {
         </div>
       </div>
       <div className="metric-grid">
-        <Metric label="Findings" value={result?.finding_count ?? 0} />
-        <Metric label="Public" value={result?.public_exposure_count ?? 0} />
-        <Metric label="Files" value={result?.scanned_files ?? 0} />
-        <Metric label="URLs" value={result?.scanned_addresses?.length ?? 0} />
-        <Metric label="Hash" value={result?.content_hash ? result.content_hash.slice(0, 8) : "pending"} />
+        <MemoMetric label="Findings" value={result?.finding_count ?? 0} />
+        <MemoMetric label="Public" value={result?.public_exposure_count ?? 0} />
+        <MemoMetric label="Files" value={result?.scanned_files ?? 0} />
+        <MemoMetric label="URLs" value={result?.scanned_addresses?.length ?? 0} />
+        <MemoMetric label="Hash" value={result?.content_hash ? result.content_hash.slice(0, 8) : "pending"} />
       </div>
     </div>
   );
 }
+
+const MemoRiskPanel = memo(RiskPanel);
 
 function Metric({ label, value }) {
   return (
@@ -420,6 +433,8 @@ function Metric({ label, value }) {
     </div>
   );
 }
+
+const MemoMetric = memo(Metric);
 
 function RecommendationCard({ recommendation }) {
   return (
@@ -450,6 +465,8 @@ function RecommendationCard({ recommendation }) {
     </article>
   );
 }
+
+const MemoRecommendationCard = memo(RecommendationCard);
 
 function FindingCard({ finding }) {
   const address = finding.file_path || finding.source_address || finding.source_name;
@@ -492,3 +509,5 @@ function FindingCard({ finding }) {
     </article>
   );
 }
+
+const MemoFindingCard = memo(FindingCard);
