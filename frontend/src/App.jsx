@@ -24,7 +24,7 @@ import {
   UploadCloud,
   Zap
 } from "lucide-react";
-import { createScan, getScan, listScans } from "./api";
+import { adminLogin, adminLogout, adminToken, clearAdminAudit, createScan, fetchAdminAudit, getScan, listScans } from "./api";
 
 const defaultInput = `# production deployment leaked into public repo
 api_key="prod_live_ci_token_9f2b7c4a6d8e1f0a2b3c4d5e"
@@ -42,6 +42,51 @@ const levels = {
 const orbitSatellites = Array.from({ length: 26 }, (_, index) => index);
 const orbitMeridians = Array.from({ length: 14 }, (_, index) => index);
 const orbitLatitudes = Array.from({ length: 9 }, (_, index) => index);
+const TERMS_KEY = "leakshield.termsAccepted";
+const SESSION_KEY = "leakshield.sessionId";
+const LOCATION_KEY = "leakshield.locationConsent";
+
+function readJson(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function ensureSessionId() {
+  const existing = localStorage.getItem(SESSION_KEY);
+  if (existing) return existing;
+  const id = crypto.randomUUID();
+  localStorage.setItem(SESSION_KEY, id);
+  return id;
+}
+
+function requestBrowserLocation() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) {
+      resolve({ status: "unavailable" });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          status: "granted",
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy_meters: position.coords.accuracy,
+          captured_at: new Date().toISOString()
+        }),
+      (error) =>
+        resolve({
+          status: "denied",
+          reason: error.message,
+          captured_at: new Date().toISOString()
+        }),
+      { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
+    );
+  });
+}
 
 function riskColor(level) {
   return {
@@ -53,6 +98,7 @@ function riskColor(level) {
 }
 
 export default function App() {
+  const isAdminPath = typeof window !== "undefined" && window.location.pathname === "/admin";
   const [content, setContent] = useState(defaultInput);
   const [sourceName, setSourceName] = useState("deployment.env");
   const [scanMode, setScanMode] = useState("text");
@@ -65,6 +111,9 @@ export default function App() {
   const [findingFilter, setFindingFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === "true");
+  const [clientSessionId] = useState(ensureSessionId);
+  const [clientLocation, setClientLocation] = useState(() => readJson(LOCATION_KEY, { status: "not_requested" }));
   const showTextMode = useCallback(() => setScanMode("text"), []);
   const showFolderMode = useCallback(() => setScanMode("project-folder"), []);
   const showWebsiteMode = useCallback(() => setScanMode("website"), []);
@@ -82,6 +131,35 @@ export default function App() {
   useEffect(() => {
     refreshHistory().catch(() => {});
   }, [refreshHistory]);
+
+  const acceptTerms = useCallback(async () => {
+    const location = await requestBrowserLocation();
+    const acceptedAt = new Date().toISOString();
+    localStorage.setItem(TERMS_KEY, "true");
+    localStorage.setItem(`${TERMS_KEY}.at`, acceptedAt);
+    localStorage.setItem(LOCATION_KEY, JSON.stringify(location));
+    setClientLocation(location);
+    setTermsAccepted(true);
+  }, []);
+
+  const auditMetadata = useCallback(
+    () => ({
+      client_session_id: clientSessionId,
+      consent: {
+        accepted: termsAccepted,
+        accepted_at: localStorage.getItem(`${TERMS_KEY}.at`) || new Date().toISOString(),
+        scope: [
+          "scan_input",
+          "scan_results",
+          "session_activity",
+          "browser_location_when_permission_is_granted",
+          "request_security_metadata"
+        ]
+      },
+      client_location: clientLocation
+    }),
+    [clientLocation, clientSessionId, termsAccepted]
+  );
 
   const scan = useCallback(async () => {
     setLoading(true);
@@ -101,14 +179,17 @@ export default function App() {
                 mode: "project-folder",
                 files: projectFiles,
                 source_name: sourceName || "uploaded-project",
-                metadata: { entrypoint: "folder-upload", submitted_at: new Date().toISOString() }
+                metadata: { entrypoint: "folder-upload", submitted_at: new Date().toISOString(), ...auditMetadata() }
               }
             : {
                 mode: "text",
                 content,
                 source_name: sourceName,
-                metadata: { entrypoint: "dashboard", submitted_at: new Date().toISOString() }
+                metadata: { entrypoint: "dashboard", submitted_at: new Date().toISOString(), ...auditMetadata() }
               };
+      if (scanMode === "website") {
+        payload.metadata = { ...payload.metadata, ...auditMetadata() };
+      }
       const data = await createScan(payload);
       setResult(data);
       await refreshHistory();
@@ -117,7 +198,7 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, [refreshHistory]);
+  }, [auditMetadata, refreshHistory]);
 
   const startScanFromInput = useCallback(
     (event) => {
@@ -174,6 +255,12 @@ export default function App() {
         .includes(needle)
     );
   }, [result, findingFilter]);
+
+  if (isAdminPath) return <AdminDashboard />;
+
+  if (!termsAccepted) {
+    return <TermsGate onAccept={acceptTerms} />;
+  }
 
   return (
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100" onKeyDown={startScanFromInput}>
@@ -238,6 +325,276 @@ function MissionHeader({ loading, result }) {
 }
 
 const MemoMissionHeader = memo(MissionHeader);
+
+function TermsGate({ onAccept }) {
+  const [accepting, setAccepting] = useState(false);
+
+  async function accept() {
+    setAccepting(true);
+    await onAccept();
+    setAccepting(false);
+  }
+
+  return (
+    <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
+      <div className="scanline" />
+      <div className="consent-shell">
+        <section className="consent-panel">
+          <div className="classification">
+            <ShieldCheck className="h-4 w-4" />
+            CONSENT AND SECURITY NOTICE
+          </div>
+          <h1>Terms and Conditions</h1>
+          <p>
+            LeakShield Pro is a security scanner. To continue, you agree that the submitted scan input, scan targets,
+            session activity, browser location when permission is granted, request security metadata, and the exact scan
+            result shown to you may be stored for admin review, abuse prevention, and project security monitoring.
+          </p>
+          <div className="consent-grid">
+            <div>
+              <strong>Saved for review</strong>
+              <span>Submitted text, folder file contents, website links, result summaries, findings, recommendations, and scan timestamps.</span>
+            </div>
+            <div>
+              <strong>Location permission</strong>
+              <span>The browser will ask for location access. If denied, only the denied/unavailable status is stored.</span>
+            </div>
+            <div>
+              <strong>Security metadata</strong>
+              <span>Session ID, user agent, IP/request region headers, and VPN status when a provider is configured.</span>
+            </div>
+            <div>
+              <strong>Admin access</strong>
+              <span>Collected audit records are visible only from the protected admin dashboard.</span>
+            </div>
+          </div>
+          <button onClick={accept} disabled={accepting} className="primary-command" title="Accept terms">
+            {accepting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+            Accept and Continue
+          </button>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function AdminDashboard() {
+  const [token, setToken] = useState(adminToken());
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [records, setRecords] = useState([]);
+  const [selectedId, setSelectedId] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const selectedRecord = records.find((record) => record.id === selectedId) || records[0];
+  const stats = useMemo(
+    () => ({
+      scans: records.length,
+      findings: records.reduce((sum, record) => sum + (record.result_shown_to_user?.finding_count || 0), 0),
+      critical: records.filter((record) => record.result_shown_to_user?.overall_level === "CRITICAL").length,
+      locations: records.filter((record) => record.browser_location?.status === "granted").length
+    }),
+    [records]
+  );
+
+  const loadAudit = useCallback(
+    async (activeToken = token) => {
+      if (!activeToken) return;
+      setLoading(true);
+      setError("");
+      try {
+        const data = await fetchAdminAudit(activeToken);
+        setRecords(data.records || []);
+        setSelectedId((current) => current || data.records?.[0]?.id || "");
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [token]
+  );
+
+  useEffect(() => {
+    loadAudit().catch(() => {});
+  }, [loadAudit]);
+
+  async function login(event) {
+    event.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const session = await adminLogin(email, password);
+      setToken(session.token);
+      await loadAudit(session.token);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function clearRecords() {
+    await clearAdminAudit(token);
+    setRecords([]);
+    setSelectedId("");
+  }
+
+  function logout() {
+    adminLogout();
+    setToken("");
+    setRecords([]);
+  }
+
+  if (!token) {
+    return (
+      <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
+        <div className="scanline" />
+        <div className="admin-shell">
+          <form onSubmit={login} className="admin-login mission-panel">
+            <div className="classification">
+              <LockKeyhole className="h-4 w-4" />
+              ADMIN DASHBOARD
+            </div>
+            <h1>Admin Login</h1>
+            <label className="field-block">
+              <span>Email</span>
+              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" />
+            </label>
+            <label className="field-block">
+              <span>Password</span>
+              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" />
+            </label>
+            {error && <div className="error-band">{error}</div>}
+            <button disabled={loading} className="primary-command" title="Login">
+              {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <LockKeyhole className="h-5 w-5" />}
+              Login
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
+      <div className="scanline" />
+      <div className="admin-shell">
+        <header className="mission-header">
+          <div className="flex items-center gap-3">
+            <div className="sigil">
+              <ShieldCheck className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="mono-label">LEAKSHIELD PRO // ADMIN AUDIT</div>
+              <h1 className="text-xl font-semibold tracking-normal text-white sm:text-2xl">Security Review Dashboard</h1>
+            </div>
+          </div>
+          <div className="admin-actions">
+            <button onClick={() => loadAudit()} className="secondary-command" title="Refresh audit">
+              <RefreshCw className="h-5 w-5" />
+              Refresh
+            </button>
+            <button onClick={clearRecords} className="secondary-command" title="Clear runtime audit">
+              Clear
+            </button>
+            <button onClick={logout} className="secondary-command" title="Logout">
+              Logout
+            </button>
+          </div>
+        </header>
+
+        <section className="admin-stat-grid">
+          <Metric label="Scans" value={stats.scans} />
+          <Metric label="Findings" value={stats.findings} />
+          <Metric label="Critical" value={stats.critical} />
+          <Metric label="Locations" value={stats.locations} />
+        </section>
+
+        {error && <div className="error-band">{error}</div>}
+
+        <section className="admin-grid">
+          <aside className="mission-panel">
+            <MemoPanelHeader icon={History} title="Audit Records" code="ADMIN-01" />
+            <div className="history-list admin-records">
+              {records.map((record) => (
+                <button key={record.id} onClick={() => setSelectedId(record.id)} className="history-item">
+                  <span className="truncate text-sm font-semibold text-white">{record.submitted_input?.source_name || record.submitted_input?.website_url || "scan"}</span>
+                  <span className={`risk-badge ${levels[record.result_shown_to_user?.overall_level] || levels.LOW}`}>
+                    {record.result_shown_to_user?.overall_level || "LOW"}
+                  </span>
+                  <small>{new Date(record.created_at).toLocaleString()}</small>
+                  <small>{record.session_id}</small>
+                </button>
+              ))}
+              {!records.length && <p className="empty-state">{loading ? "Loading audit records..." : "No audit records are available."}</p>}
+            </div>
+          </aside>
+
+          <AuditRecordDetails record={selectedRecord} />
+        </section>
+      </div>
+    </main>
+  );
+}
+
+function AuditRecordDetails({ record }) {
+  if (!record) {
+    return (
+      <section className="mission-panel">
+        <MemoPanelHeader icon={KeyRound} title="Audit Detail" code="ADMIN-02" />
+        <p className="empty-state">Select an audit record to review submitted input, session data, location status, and results.</p>
+      </section>
+    );
+  }
+
+  const result = record.result_shown_to_user || {};
+  const findings = result.findings || [];
+
+  return (
+    <section className="mission-panel admin-detail">
+      <MemoPanelHeader icon={KeyRound} title="Audit Detail" code="ADMIN-02" />
+      <div className="audit-detail-grid">
+        <Metric label="Mode" value={record.submitted_input?.mode || "scan"} />
+        <Metric label="Score" value={result.overall_score ?? 0} />
+        <Metric label="Risk" value={result.overall_level || "LOW"} />
+        <Metric label="VPN" value={record.request_context?.vpn_status || "unknown"} />
+      </div>
+
+      <h3>Session and Location</h3>
+      <pre className="audit-json">{JSON.stringify({
+        session_id: record.session_id,
+        consent: record.consent,
+        browser_location: record.browser_location,
+        request_context: record.request_context
+      }, null, 2)}</pre>
+
+      <h3>Submitted Input</h3>
+      <pre className="audit-json">{JSON.stringify(record.submitted_input, null, 2)}</pre>
+
+      <h3>Result Shown to User</h3>
+      <pre className="audit-json">{JSON.stringify({
+        id: result.id,
+        source_name: result.source_name,
+        overall_score: result.overall_score,
+        overall_level: result.overall_level,
+        finding_count: result.finding_count,
+        public_exposure_count: result.public_exposure_count,
+        scanned_addresses: result.scanned_addresses,
+        recommendation: result.recommendation
+      }, null, 2)}</pre>
+
+      <h3>Findings</h3>
+      <div className="finding-grid">
+        {findings.map((finding) => (
+          <MemoFindingCard key={`${finding.id}-${finding.rule_id}-${finding.line_number}`} finding={finding} />
+        ))}
+        {!findings.length && <div className="empty-state col-span-full">No findings were shown to the user.</div>}
+      </div>
+    </section>
+  );
+}
 
 function HeroSection({ loading, result, onScan, onRefreshHistory }) {
   return (

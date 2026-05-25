@@ -877,6 +877,133 @@ button {
   padding: 1rem;
 }
 
+.consent-shell,
+.admin-shell {
+  position: relative;
+  z-index: 2;
+  width: min(1500px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 1.25rem 0;
+}
+
+.consent-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+}
+
+.consent-panel,
+.admin-login {
+  width: min(880px, 100%);
+  border: 1px solid var(--line);
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.86)),
+    linear-gradient(90deg, rgba(103, 232, 249, 0.05), transparent);
+  box-shadow: 0 22px 90px rgba(0, 0, 0, 0.34);
+  padding: 1.4rem;
+  backdrop-filter: blur(18px);
+}
+
+.consent-panel h1,
+.admin-login h1 {
+  margin-top: 1rem;
+  color: white;
+  font-size: 2.3rem;
+  font-weight: 900;
+}
+
+.consent-panel p {
+  margin-top: 1rem;
+  color: #cbd5e1;
+  line-height: 1.75;
+}
+
+.consent-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.consent-grid div {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.55);
+  padding: 0.85rem;
+}
+
+.consent-grid strong,
+.consent-grid span {
+  display: block;
+}
+
+.consent-grid strong {
+  color: white;
+}
+
+.consent-grid span {
+  margin-top: 0.35rem;
+  color: #94a3b8;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.admin-login {
+  display: grid;
+  gap: 0.9rem;
+  margin: 12vh auto 0;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: flex-end;
+}
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.7fr) minmax(0, 1.3fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.admin-records {
+  max-height: 720px;
+}
+
+.admin-detail h3 {
+  margin-top: 1rem;
+  color: white;
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.audit-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.audit-json {
+  max-height: 22rem;
+  overflow: auto;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.72);
+  color: #dce9f7;
+  padding: 0.85rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.76rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: #334155 #0f172a;
@@ -1131,6 +1258,13 @@ button {
   }
 
   .history-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .consent-grid,
+  .admin-grid,
+  .admin-stat-grid,
+  .audit-detail-grid {
     grid-template-columns: 1fr;
   }
 }

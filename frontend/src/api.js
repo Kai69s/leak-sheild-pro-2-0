@@ -3,6 +3,7 @@ const API_BASE =
   (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:8000" : "");
 const HISTORY_KEY = "leakshield.scanHistory";
 const DETAIL_KEY = "leakshield.scanDetails";
+const ADMIN_TOKEN_KEY = "leakshield.adminToken";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -44,6 +45,37 @@ export function getScan(id) {
   const details = readDetails();
   if (details[id]) return Promise.resolve(details[id]);
   return request(`/api/scans/${id}`);
+}
+
+export function adminLogin(email, password) {
+  return request("/api/admin", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  }).then((session) => {
+    localStorage.setItem(ADMIN_TOKEN_KEY, session.token);
+    return session;
+  });
+}
+
+export function adminToken() {
+  return localStorage.getItem(ADMIN_TOKEN_KEY) || "";
+}
+
+export function adminLogout() {
+  localStorage.removeItem(ADMIN_TOKEN_KEY);
+}
+
+export function fetchAdminAudit(token = adminToken()) {
+  return request("/api/admin", {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+}
+
+export function clearAdminAudit(token = adminToken()) {
+  return request("/api/admin", {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` }
+  });
 }
 
 function readHistory() {

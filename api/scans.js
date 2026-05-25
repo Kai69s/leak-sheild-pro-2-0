@@ -1,4 +1,5 @@
 const crypto = require("crypto");
+const { addAuditRecord } = require("./_auditStore");
 
 const MAX_FOLDER_FILES = 140;
 const MAX_FILE_BYTES = 220_000;
@@ -35,6 +36,75 @@ const commonPublicPaths = [
   "/api/settings",
   "/_next/static/chunks/webpack.js"
 ];
+
+function headerValue(req, name) {
+  const value = req.headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] : value || "";
+}
+
+function clientIp(req) {
+  return (
+    headerValue(req, "x-forwarded-for").split(",")[0].trim() ||
+    headerValue(req, "x-real-ip") ||
+    headerValue(req, "x-vercel-forwarded-for") ||
+    "unknown"
+  );
+}
+
+function requestContext(req) {
+  return {
+    ip_address: clientIp(req),
+    user_agent: headerValue(req, "user-agent"),
+    country: headerValue(req, "x-vercel-ip-country") || "unknown",
+    region: headerValue(req, "x-vercel-ip-country-region") || "unknown",
+    city: headerValue(req, "x-vercel-ip-city") || "unknown",
+    timezone: headerValue(req, "x-vercel-ip-timezone") || "unknown",
+    vpn_status: "unknown",
+    vpn_blocked: false
+  };
+}
+
+function submittedInput(payload, mode) {
+  if (mode === "website") {
+    return {
+      mode,
+      website_url: payload.website_url || payload.url || "",
+      source_name: payload.source_name || payload.website_url || payload.url || "website-scan"
+    };
+  }
+  if (mode === "project-folder") {
+    return {
+      mode,
+      source_name: payload.source_name || "uploaded-project",
+      files: Array.isArray(payload.files)
+        ? payload.files.map((file) => ({
+            path: file.path,
+            size: file.size,
+            content: typeof file.content === "string" ? file.content.slice(0, MAX_FILE_BYTES) : ""
+          }))
+        : []
+    };
+  }
+  return {
+    mode,
+    source_name: payload.source_name || "manual-input",
+    content: payload.content || ""
+  };
+}
+
+function auditScan(req, payload, mode, result) {
+  const metadata = payload.metadata || {};
+  addAuditRecord({
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    session_id: metadata.client_session_id || "unknown",
+    consent: metadata.consent || {},
+    browser_location: metadata.client_location || { status: "not_provided" },
+    request_context: requestContext(req),
+    submitted_input: submittedInput(payload, mode),
+    result_shown_to_user: result
+  });
+}
 
 const rules = [
   rule("aws-access-key-id", "AWS Access Key ID", "HIGH", 0.95, /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/g, {
@@ -557,10 +627,20 @@ module.exports = async function handler(req, res) {
   try {
     const payload = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     const mode = payload.mode || (payload.website_url || payload.url ? "website" : Array.isArray(payload.files) ? "project-folder" : "text");
-    if (mode === "website") return res.status(201).json(await scanWebsite(payload));
-    if (mode === "project-folder") return res.status(201).json(scanProject(payload));
+    if (mode === "website") {
+      const result = await scanWebsite(payload);
+      auditScan(req, payload, mode, result);
+      return res.status(201).json(result);
+    }
+    if (mode === "project-folder") {
+      const result = scanProject(payload);
+      auditScan(req, payload, mode, result);
+      return res.status(201).json(result);
+    }
     if (!payload.content) return res.status(400).json({ detail: "content is required" });
-    return res.status(201).json(scanText(payload));
+    const result = scanText(payload);
+    auditScan(req, payload, mode, result);
+    return res.status(201).json(result);
   } catch (error) {
     return res.status(error.statusCode || 500).json({ detail: error.message || "Scan failed" });
   }
