@@ -265,6 +265,7 @@ export default function App() {
   return (
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100" onKeyDown={startScanFromInput}>
       <div className="scanline" />
+      <AdminShortcut />
       <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-10">
         <MemoMissionHeader loading={loading} result={result} />
         <MemoHeroSection loading={loading} result={result} onScan={scan} onRefreshHistory={refreshHistory} />
@@ -326,6 +327,15 @@ function MissionHeader({ loading, result }) {
 
 const MemoMissionHeader = memo(MissionHeader);
 
+function AdminShortcut() {
+  return (
+    <a className="admin-shortcut" href="/admin" title="Open admin login">
+      <LockKeyhole className="h-4 w-4" />
+      Admin Login
+    </a>
+  );
+}
+
 function TermsGate({ onAccept }) {
   const [accepting, setAccepting] = useState(false);
 
@@ -338,6 +348,7 @@ function TermsGate({ onAccept }) {
   return (
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
       <div className="scanline" />
+      <AdminShortcut />
       <div className="consent-shell">
         <section className="consent-panel">
           <div className="classification">
@@ -346,27 +357,89 @@ function TermsGate({ onAccept }) {
           </div>
           <h1>Terms and Conditions</h1>
           <p>
-            LeakShield Pro is a security scanner. To continue, you agree that the submitted scan input, scan targets,
-            session activity, browser location when permission is granted, request security metadata, and the exact scan
-            result shown to you may be stored for admin review, abuse prevention, and project security monitoring.
+            LeakShield Pro is a security and exposure-scanning tool. Before using it, please read these terms carefully.
+            By selecting Accept and Continue, you confirm that you understand what information may be processed, why it is
+            processed, and that you have permission to submit the material you scan.
           </p>
-          <div className="consent-grid">
-            <div>
-              <strong>Saved for review</strong>
-              <span>Submitted text, folder file contents, website links, result summaries, findings, recommendations, and scan timestamps.</span>
-            </div>
-            <div>
-              <strong>Location permission</strong>
-              <span>The browser will ask for location access. If denied, only the denied/unavailable status is stored.</span>
-            </div>
-            <div>
-              <strong>Security metadata</strong>
-              <span>Session ID, user agent, IP/request region headers, and VPN status when a provider is configured.</span>
-            </div>
-            <div>
-              <strong>Admin access</strong>
-              <span>Collected audit records are visible only from the protected admin dashboard.</span>
-            </div>
+          <div className="terms-detail">
+            <article>
+              <strong>1. Purpose of the service</strong>
+              <span>
+                LeakShield Pro scans submitted text, project files, and website links to identify exposed secrets,
+                security-sensitive strings, credentials, risky configuration patterns, and related findings. The tool is
+                intended for defensive security review, project hardening, audit preparation, and abuse prevention.
+              </span>
+            </article>
+            <article>
+              <strong>2. Information you submit for scanning</strong>
+              <span>
+                Depending on the scan mode you choose, the system may process and save the text you paste, the website
+                address you enter, the selected project file names and file contents made available to the scanner, and
+                the source name or label shown inside the app. You should only submit information that you own, control,
+                or have clear authorization to review.
+              </span>
+            </article>
+            <article>
+              <strong>3. Scan results saved for admin review</strong>
+              <span>
+                The exact result shown to you may be stored, including the overall risk level, detected finding count,
+                secret or exposure type, rule identifiers, file path or source address when available, context snippets,
+                risk explanations, recommendations, and timestamps. This is saved so an authorized admin can verify what
+                was detected, investigate misuse, improve review quality, and support security reporting.
+              </span>
+            </article>
+            <article>
+              <strong>4. Session and activity information</strong>
+              <span>
+                The app creates a browser session identifier so scans from the same browser can be grouped together for
+                audit review. Activity records may include scan time, selected scan mode, submitted target, request user
+                agent, request IP-related headers made available by the hosting platform, approximate request region data
+                when provided by infrastructure, and whether the browser location request was granted, denied, or
+                unavailable.
+              </span>
+            </article>
+            <article>
+              <strong>5. Location permission</strong>
+              <span>
+                After acceptance, your browser may ask for location access. If you allow it, the app may save latitude,
+                longitude, accuracy, and capture time for security monitoring and anti-abuse review. If you deny the
+                request, LeakShield Pro records only that location was denied or unavailable. Browser location is used for
+                security context and is not required to change scan results.
+              </span>
+            </article>
+            <article>
+              <strong>6. VPN and abuse-prevention checks</strong>
+              <span>
+                The system may record VPN, proxy, or suspicious-network status when a legitimate IP-intelligence provider
+                is configured. If no provider is configured, the status may be saved as unknown. Any future blocking rules
+                are intended to protect the service from abuse, automated misuse, unauthorized probing, or activity that
+                could harm the project or its users.
+              </span>
+            </article>
+            <article>
+              <strong>7. Admin dashboard access</strong>
+              <span>
+                Stored audit records are available only through the protected admin dashboard. Admin review is limited to
+                security monitoring, scan verification, abuse prevention, troubleshooting, and project improvement. Admin
+                access should not be used to expose, sell, or misuse submitted information.
+              </span>
+            </article>
+            <article>
+              <strong>8. User responsibility</strong>
+              <span>
+                You agree not to submit stolen data, third-party private code, credentials, systems, or websites unless
+                you have permission to scan them. If you accidentally submit sensitive information, the scan may still be
+                logged exactly as shown so the project can maintain an accurate security audit trail.
+              </span>
+            </article>
+            <article>
+              <strong>9. Consent to continue</strong>
+              <span>
+                By continuing, you give permission for LeakShield Pro to process and store the information described
+                above for legitimate security, audit, and administrative purposes. If you do not agree with these terms,
+                do not continue using the scanner.
+              </span>
+            </article>
           </div>
           <button onClick={accept} disabled={accepting} className="primary-command" title="Accept terms">
             {accepting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}

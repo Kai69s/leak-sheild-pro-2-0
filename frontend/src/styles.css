@@ -877,6 +877,36 @@ button {
   padding: 1rem;
 }
 
+.admin-shortcut {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.35rem;
+  border: 1px solid rgba(103, 232, 249, 0.28);
+  background: rgba(2, 6, 23, 0.78);
+  color: #dff7ff;
+  padding: 0 0.85rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(16px);
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    transform 0.16s ease;
+}
+
+.admin-shortcut:hover {
+  border-color: rgba(103, 232, 249, 0.62);
+  background: rgba(8, 18, 36, 0.9);
+  transform: translateY(-1px);
+}
+
 .consent-shell,
 .admin-shell {
   position: relative;
@@ -894,7 +924,7 @@ button {
 
 .consent-panel,
 .admin-login {
-  width: min(880px, 100%);
+  width: min(980px, 100%);
   border: 1px solid var(--line);
   background:
     linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.86)),
@@ -918,33 +948,37 @@ button {
   line-height: 1.75;
 }
 
-.consent-grid {
+.terms-detail {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   margin: 1rem 0;
 }
 
-.consent-grid div {
+.terms-detail article {
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(2, 6, 23, 0.55);
   padding: 0.85rem;
 }
 
-.consent-grid strong,
-.consent-grid span {
+.terms-detail strong,
+.terms-detail span {
   display: block;
 }
 
-.consent-grid strong {
+.terms-detail strong {
   color: white;
 }
 
-.consent-grid span {
+.terms-detail span {
   margin-top: 0.35rem;
   color: #94a3b8;
   font-size: 0.86rem;
   line-height: 1.55;
+}
+
+.terms-detail article:last-child {
+  grid-column: 1 / -1;
 }
 
 .admin-login {
@@ -1261,10 +1295,14 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .consent-grid,
+  .terms-detail,
   .admin-grid,
   .admin-stat-grid,
   .audit-detail-grid {
     grid-template-columns: 1fr;
+  }
+
+  .terms-detail article:last-child {
+    grid-column: auto;
   }
 }
