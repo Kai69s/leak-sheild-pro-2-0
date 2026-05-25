@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { clearAuditRecords, listAuditRecords } = require("./_auditStore");
+const { clearAuditRecords, listAuditRecords, listAuditUsers } = require("./_auditStore");
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
@@ -62,7 +62,7 @@ function verifyToken(req) {
   }
 }
 
-module.exports = function handler(req, res) {
+module.exports = async function handler(req, res) {
   setSecurityHeaders(req, res);
 
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -84,12 +84,17 @@ module.exports = function handler(req, res) {
   if (req.method === "GET") {
     return json(res, 200, {
       admin: admin.email,
-      records: listAuditRecords()
+      records: await listAuditRecords(),
+      users: await listAuditUsers(),
+      storage: {
+        provider: process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_OIDC_TOKEN ? "vercel_blob_private" : "memory_fallback",
+        grouping: "one_user_box_per_browser_session"
+      }
     });
   }
 
   if (req.method === "DELETE") {
-    clearAuditRecords();
+    await clearAuditRecords();
     return json(res, 200, { ok: true });
   }
 

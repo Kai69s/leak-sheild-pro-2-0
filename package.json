@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "build": "cd frontend && npm run build"
+  },
+  "dependencies": {
+    "@vercel/blob": "^2.4.0"
   }
 }
-

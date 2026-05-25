@@ -94,9 +94,9 @@ function submittedInput(payload, mode) {
   };
 }
 
-function auditScan(req, payload, mode, result) {
+async function auditScan(req, payload, mode, result) {
   const metadata = payload.metadata || {};
-  addAuditRecord({
+  await addAuditRecord({
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
     session_id: metadata.client_session_id || "unknown",
@@ -635,17 +635,17 @@ module.exports = async function handler(req, res) {
     const mode = payload.mode || (payload.website_url || payload.url ? "website" : Array.isArray(payload.files) ? "project-folder" : "text");
     if (mode === "website") {
       const result = await scanWebsite(payload);
-      auditScan(req, payload, mode, result);
+      await auditScan(req, payload, mode, result);
       return res.status(201).json(result);
     }
     if (mode === "project-folder") {
       const result = scanProject(payload);
-      auditScan(req, payload, mode, result);
+      await auditScan(req, payload, mode, result);
       return res.status(201).json(result);
     }
     if (!payload.content) return res.status(400).json({ detail: "content is required" });
     const result = scanText(payload);
-    auditScan(req, payload, mode, result);
+    await auditScan(req, payload, mode, result);
     return res.status(201).json(result);
   } catch (error) {
     return res.status(error.statusCode || 500).json({ detail: error.message || "Scan failed" });

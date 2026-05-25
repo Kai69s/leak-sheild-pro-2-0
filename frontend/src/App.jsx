@@ -487,19 +487,22 @@ function AdminDashboard() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [records, setRecords] = useState([]);
-  const [selectedId, setSelectedId] = useState("");
+  const [users, setUsers] = useState([]);
+  const [storage, setStorage] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const selectedRecord = records.find((record) => record.id === selectedId) || records[0];
+  const selectedUser = users.find((user) => user.id === selectedUserId) || users[0];
   const stats = useMemo(
     () => ({
+      users: users.length,
       scans: records.length,
       findings: records.reduce((sum, record) => sum + (record.result_shown_to_user?.finding_count || 0), 0),
       critical: records.filter((record) => record.result_shown_to_user?.overall_level === "CRITICAL").length,
       locations: records.filter((record) => record.browser_location?.status === "granted").length
     }),
-    [records]
+    [records, users.length]
   );
 
   const loadAudit = useCallback(
@@ -510,7 +513,9 @@ function AdminDashboard() {
       try {
         const data = await fetchAdminAudit(activeToken);
         setRecords(data.records || []);
-        setSelectedId((current) => current || data.records?.[0]?.id || "");
+        setUsers(data.users || []);
+        setStorage(data.storage || null);
+        setSelectedUserId((current) => current || data.users?.[0]?.id || "");
       } catch (err) {
         setError(err.message);
       } finally {
@@ -542,13 +547,15 @@ function AdminDashboard() {
   async function clearRecords() {
     await clearAdminAudit(token);
     setRecords([]);
-    setSelectedId("");
+    setUsers([]);
+    setSelectedUserId("");
   }
 
   function logout() {
     adminLogout();
     setToken("");
     setRecords([]);
+    setUsers([]);
   }
 
   if (!token) {
@@ -600,7 +607,7 @@ function AdminDashboard() {
               <RefreshCw className="h-5 w-5" />
               Refresh
             </button>
-            <button onClick={clearRecords} className="secondary-command" title="Clear runtime audit">
+            <button onClick={clearRecords} className="secondary-command" title="Clear saved audit database">
               Clear
             </button>
             <button onClick={logout} className="secondary-command" title="Logout">
@@ -610,92 +617,119 @@ function AdminDashboard() {
         </header>
 
         <section className="admin-stat-grid">
+          <Metric label="Users" value={stats.users} />
           <Metric label="Scans" value={stats.scans} />
           <Metric label="Findings" value={stats.findings} />
           <Metric label="Critical" value={stats.critical} />
-          <Metric label="Locations" value={stats.locations} />
         </section>
+
+        {storage && (
+          <div className="storage-band">
+            <Database className="h-4 w-4" />
+            <span>{storage.provider === "vercel_blob_private" ? "Private Vercel Blob database active" : "Memory fallback active"}</span>
+            <strong>{storage.grouping}</strong>
+          </div>
+        )}
 
         {error && <div className="error-band">{error}</div>}
 
         <section className="admin-grid">
           <aside className="mission-panel">
-            <MemoPanelHeader icon={History} title="Audit Records" code="ADMIN-01" />
+            <MemoPanelHeader icon={History} title="User Audit Boxes" code="ADMIN-01" />
             <div className="history-list admin-records">
-              {records.map((record) => (
-                <button key={record.id} onClick={() => setSelectedId(record.id)} className="history-item">
-                  <span className="truncate text-sm font-semibold text-white">{record.submitted_input?.source_name || record.submitted_input?.website_url || "scan"}</span>
-                  <span className={`risk-badge ${levels[record.result_shown_to_user?.overall_level] || levels.LOW}`}>
-                    {record.result_shown_to_user?.overall_level || "LOW"}
+              {users.map((user) => (
+                <button key={user.id} onClick={() => setSelectedUserId(user.id)} className="history-item user-box-button">
+                  <span className="truncate text-sm font-semibold text-white">{user.id}</span>
+                  <span className={`risk-badge ${levels[user.latest_risk] || levels.LOW}`}>
+                    {user.latest_risk || "LOW"}
                   </span>
-                  <small>{new Date(record.created_at).toLocaleString()}</small>
-                  <small>{record.session_id}</small>
+                  <small>{user.scan_count} scans | {user.finding_count} findings | IP {user.latest_ip}</small>
+                  <small>{user.session_id}</small>
+                  <small>Latest: {new Date(user.latest_seen_at).toLocaleString()}</small>
                 </button>
               ))}
-              {!records.length && <p className="empty-state">{loading ? "Loading audit records..." : "No audit records are available."}</p>}
+              {!users.length && <p className="empty-state">{loading ? "Loading user boxes..." : "No user audit boxes are available."}</p>}
             </div>
           </aside>
 
-          <AuditRecordDetails record={selectedRecord} />
+          <AuditUserBox user={selectedUser} />
         </section>
       </div>
     </main>
   );
 }
 
-function AuditRecordDetails({ record }) {
-  if (!record) {
+function AuditUserBox({ user }) {
+  if (!user) {
     return (
       <section className="mission-panel">
-        <MemoPanelHeader icon={KeyRound} title="Audit Detail" code="ADMIN-02" />
-        <p className="empty-state">Select an audit record to review submitted input, session data, location status, and results.</p>
+        <MemoPanelHeader icon={KeyRound} title="User Data Box" code="ADMIN-02" />
+        <p className="empty-state">Select a user box to review submitted input, session data, location status, network metadata, and scan results.</p>
       </section>
     );
   }
 
-  const result = record.result_shown_to_user || {};
-  const findings = result.findings || [];
+  const latest = user.records?.[0] || {};
 
   return (
     <section className="mission-panel admin-detail">
-      <MemoPanelHeader icon={KeyRound} title="Audit Detail" code="ADMIN-02" />
+      <MemoPanelHeader icon={KeyRound} title="User Data Box" code="ADMIN-02" />
       <div className="audit-detail-grid">
-        <Metric label="Mode" value={record.submitted_input?.mode || "scan"} />
-        <Metric label="IP" value={record.request_context?.ip_address || "unknown"} />
-        <Metric label="Score" value={result.overall_score ?? 0} />
-        <Metric label="Risk" value={result.overall_level || "LOW"} />
-        <Metric label="VPN" value={record.request_context?.vpn_status || "unknown"} />
+        <Metric label="User" value={user.id} />
+        <Metric label="Scans" value={user.scan_count || 0} />
+        <Metric label="Findings" value={user.finding_count || 0} />
+        <Metric label="Latest IP" value={user.latest_ip || "unknown"} />
       </div>
 
-      <h3>Session and Location</h3>
+      <h3>User Row Summary</h3>
       <pre className="audit-json">{JSON.stringify({
-        session_id: record.session_id,
-        consent: record.consent,
-        browser_location: record.browser_location,
-        request_context: record.request_context
+        user_id: user.id,
+        session_id: user.session_id,
+        first_seen_at: user.first_seen_at,
+        latest_seen_at: user.latest_seen_at,
+        scan_count: user.scan_count,
+        finding_count: user.finding_count,
+        critical_count: user.critical_count,
+        latest_risk: user.latest_risk,
+        latest_ip: user.latest_ip,
+        latest_location_status: user.latest_location_status,
+        latest_request_context: latest.request_context,
+        latest_browser_location: latest.browser_location
       }, null, 2)}</pre>
 
-      <h3>Submitted Input</h3>
-      <pre className="audit-json">{JSON.stringify(record.submitted_input, null, 2)}</pre>
-
-      <h3>Result Shown to User</h3>
-      <pre className="audit-json">{JSON.stringify({
-        id: result.id,
-        source_name: result.source_name,
-        overall_score: result.overall_score,
-        overall_level: result.overall_level,
-        finding_count: result.finding_count,
-        public_exposure_count: result.public_exposure_count,
-        scanned_addresses: result.scanned_addresses,
-        recommendation: result.recommendation
-      }, null, 2)}</pre>
-
-      <h3>Findings</h3>
-      <div className="finding-grid">
-        {findings.map((finding) => (
-          <MemoFindingCard key={`${finding.id}-${finding.rule_id}-${finding.line_number}`} finding={finding} />
-        ))}
-        {!findings.length && <div className="empty-state col-span-full">No findings were shown to the user.</div>}
+      <h3>Complete Saved Data</h3>
+      <div className="user-record-stack">
+        {(user.records || []).map((record) => {
+          const result = record.result_shown_to_user || {};
+          return (
+            <article key={record.id} className="user-record-box">
+              <div className="user-record-head">
+                <strong>{record.submitted_input?.source_name || record.submitted_input?.website_url || "scan"}</strong>
+                <span className={`risk-badge ${levels[result.overall_level] || levels.LOW}`}>{result.overall_level || "LOW"}</span>
+                <small>{new Date(record.created_at).toLocaleString()}</small>
+              </div>
+              <pre className="audit-json">{JSON.stringify({
+                record_id: record.id,
+                storage_path: record.storage_path,
+                consent: record.consent,
+                browser_location: record.browser_location,
+                request_context: record.request_context,
+                submitted_input: record.submitted_input,
+                result_shown_to_user: {
+                  id: result.id,
+                  source_name: result.source_name,
+                  overall_score: result.overall_score,
+                  overall_level: result.overall_level,
+                  finding_count: result.finding_count,
+                  public_exposure_count: result.public_exposure_count,
+                  scanned_addresses: result.scanned_addresses,
+                  recommendation: result.recommendation,
+                  findings: result.findings || []
+                }
+              }, null, 2)}</pre>
+            </article>
+          );
+        })}
       </div>
     </section>
   );

@@ -1027,6 +1027,28 @@ button {
   margin-top: 1rem;
 }
 
+.storage-band {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: 1rem;
+  border: 1px solid rgba(103, 232, 249, 0.22);
+  background: rgba(2, 6, 23, 0.55);
+  color: #cbd5e1;
+  padding: 0.8rem 0.9rem;
+  font-size: 0.84rem;
+}
+
+.storage-band svg {
+  color: var(--cyan);
+}
+
+.storage-band strong {
+  color: white;
+  font-weight: 800;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: minmax(320px, 0.7fr) minmax(0, 1.3fr);
@@ -1036,6 +1058,45 @@ button {
 
 .admin-records {
   max-height: 720px;
+}
+
+.user-box-button {
+  border-color: rgba(103, 232, 249, 0.24);
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.1), rgba(2, 6, 23, 0.7)),
+    rgba(15, 23, 42, 0.72);
+}
+
+.user-record-stack {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.user-record-box {
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(2, 6, 23, 0.45);
+  padding: 0.85rem;
+}
+
+.user-record-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.65rem;
+  align-items: center;
+  margin-bottom: 0.65rem;
+}
+
+.user-record-head strong {
+  color: white;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-record-head small {
+  color: #94a3b8;
+  font-size: 0.74rem;
 }
 
 .admin-detail h3 {
@@ -1334,6 +1395,10 @@ button {
   .admin-grid,
   .admin-stat-grid,
   .audit-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .user-record-head {
     grid-template-columns: 1fr;
   }
 
