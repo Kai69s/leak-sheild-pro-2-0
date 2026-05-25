@@ -6,9 +6,33 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET || crypto.createHash("sha256").update(`${ADMIN_EMAIL}:${ADMIN_PASSWORD}`).digest("hex");
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const ALLOWED_ORIGINS = new Set([
+  "https://leak-shield-pro.vercel.app",
+  "http://localhost:5173",
+  "http://127.0.0.1:5173"
+]);
 
 function json(res, status, body) {
   res.status(status).json(body);
+}
+
+function setSecurityHeaders(req, res) {
+  const origin = req.headers.origin || "";
+  try {
+    const hostname = origin ? new URL(origin).hostname : "";
+    if (ALLOWED_ORIGINS.has(origin) || /\.vercel\.app$/.test(hostname)) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
+  } catch {
+    // Invalid browser origins are intentionally not allowed for private admin data.
+  }
+  res.setHeader("Vary", "Origin");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), payment=(), usb=()");
 }
 
 function base64Url(value) {
@@ -39,9 +63,7 @@ function verifyToken(req) {
 }
 
 module.exports = function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  setSecurityHeaders(req, res);
 
   if (req.method === "OPTIONS") return res.status(204).end();
 

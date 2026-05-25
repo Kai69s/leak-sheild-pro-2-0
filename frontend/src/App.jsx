@@ -153,7 +153,8 @@ export default function App() {
           "scan_results",
           "session_activity",
           "browser_location_when_permission_is_granted",
-          "request_security_metadata"
+          "ip_address_and_request_security_metadata",
+          "mac_address_not_available_in_browser"
         ]
       },
       client_location: clientLocation
@@ -395,13 +396,22 @@ function TermsGate({ onAccept }) {
               <span>
                 The app creates a browser session identifier so scans from the same browser can be grouped together for
                 audit review. Activity records may include scan time, selected scan mode, submitted target, request user
-                agent, request IP-related headers made available by the hosting platform, approximate request region data
-                when provided by infrastructure, and whether the browser location request was granted, denied, or
-                unavailable.
+                agent, IP address, IP-related request headers made available by the hosting platform, approximate
+                IP-derived country, region, city, timezone when infrastructure provides it, and whether the browser
+                location request was granted, denied, or unavailable.
               </span>
             </article>
             <article>
-              <strong>5. Location permission</strong>
+              <strong>5. IP address and network security data</strong>
+              <span>
+                LeakShield Pro may save the public IP address connected to the scan request and related network metadata
+                supplied by Vercel or other hosting infrastructure. This information is used only for admin security
+                review, abuse prevention, threat investigation, rate-limit decisions, and identifying suspicious access
+                patterns. IP address information is not displayed publicly to other users.
+              </span>
+            </article>
+            <article>
+              <strong>6. Location permission</strong>
               <span>
                 After acceptance, your browser may ask for location access. If you allow it, the app may save latitude,
                 longitude, accuracy, and capture time for security monitoring and anti-abuse review. If you deny the
@@ -410,7 +420,16 @@ function TermsGate({ onAccept }) {
               </span>
             </article>
             <article>
-              <strong>6. VPN and abuse-prevention checks</strong>
+              <strong>7. MAC address status</strong>
+              <span>
+                Standard web browsers do not expose a device MAC address to websites, and LeakShield Pro does not attempt
+                to bypass browser privacy protections or fingerprint a MAC address. The admin audit record may show that
+                the MAC address is not available in the browser. If a future native, managed-device, or enterprise agent
+                ever collects device-level identifiers, it should require a separate, explicit permission notice before use.
+              </span>
+            </article>
+            <article>
+              <strong>8. VPN and abuse-prevention checks</strong>
               <span>
                 The system may record VPN, proxy, or suspicious-network status when a legitimate IP-intelligence provider
                 is configured. If no provider is configured, the status may be saved as unknown. Any future blocking rules
@@ -419,7 +438,7 @@ function TermsGate({ onAccept }) {
               </span>
             </article>
             <article>
-              <strong>7. Admin dashboard access</strong>
+              <strong>9. Admin dashboard access</strong>
               <span>
                 Stored audit records are available only through the protected admin dashboard. Admin review is limited to
                 security monitoring, scan verification, abuse prevention, troubleshooting, and project improvement. Admin
@@ -427,7 +446,17 @@ function TermsGate({ onAccept }) {
               </span>
             </article>
             <article>
-              <strong>8. User responsibility</strong>
+              <strong>10. Private-data protection</strong>
+              <span>
+                Because scan submissions, results, IP address data, location data, and security metadata can be highly
+                private, LeakShield Pro treats audit records as restricted admin-only information. API responses are marked
+                as non-cacheable, admin access requires authentication, and audit details are intended to be reviewed only
+                for security and operational purposes. Do not share admin credentials or export audit records unless there
+                is a legitimate security reason.
+              </span>
+            </article>
+            <article>
+              <strong>11. User responsibility</strong>
               <span>
                 You agree not to submit stolen data, third-party private code, credentials, systems, or websites unless
                 you have permission to scan them. If you accidentally submit sensitive information, the scan may still be
@@ -435,7 +464,7 @@ function TermsGate({ onAccept }) {
               </span>
             </article>
             <article>
-              <strong>9. Consent to continue</strong>
+              <strong>12. Consent to continue</strong>
               <span>
                 By continuing, you give permission for LeakShield Pro to process and store the information described
                 above for legitimate security, audit, and administrative purposes. If you do not agree with these terms,
@@ -632,6 +661,7 @@ function AuditRecordDetails({ record }) {
       <MemoPanelHeader icon={KeyRound} title="Audit Detail" code="ADMIN-02" />
       <div className="audit-detail-grid">
         <Metric label="Mode" value={record.submitted_input?.mode || "scan"} />
+        <Metric label="IP" value={record.request_context?.ip_address || "unknown"} />
         <Metric label="Score" value={result.overall_score ?? 0} />
         <Metric label="Risk" value={result.overall_level || "LOW"} />
         <Metric label="VPN" value={record.request_context?.vpn_status || "unknown"} />

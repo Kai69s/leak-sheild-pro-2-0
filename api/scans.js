@@ -59,6 +59,8 @@ function requestContext(req) {
     region: headerValue(req, "x-vercel-ip-country-region") || "unknown",
     city: headerValue(req, "x-vercel-ip-city") || "unknown",
     timezone: headerValue(req, "x-vercel-ip-timezone") || "unknown",
+    mac_address: "not_available_in_browser",
+    mac_address_note: "Standard web browsers do not expose client MAC addresses to websites.",
     vpn_status: "unknown",
     vpn_blocked: false
   };
@@ -619,6 +621,10 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Cache-Control", "no-store");
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), payment=(), usb=()");
 
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method === "GET") return res.status(200).json([]);
