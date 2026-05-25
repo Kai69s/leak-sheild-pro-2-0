@@ -265,7 +265,6 @@ export default function App() {
   return (
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100" onKeyDown={startScanFromInput}>
       <div className="scanline" />
-      <AdminShortcut />
       <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-10">
         <MemoMissionHeader loading={loading} result={result} />
         <MemoHeroSection loading={loading} result={result} onScan={scan} onRefreshHistory={refreshHistory} />
@@ -317,9 +316,12 @@ function MissionHeader({ loading, result }) {
           <h1 className="text-xl font-semibold tracking-normal text-white sm:text-2xl">Orbital Secret Defense Console</h1>
         </div>
       </div>
-      <div className="hidden items-center gap-3 lg:flex">
-        <MemoTelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
-        <MemoTelemetryPill icon={ShieldAlert} label="Risk" value={result?.overall_level ?? "STANDBY"} tone="red" />
+      <div className="header-actions">
+        <AdminShortcut />
+        <div className="hidden items-center gap-3 lg:flex">
+          <MemoTelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
+          <MemoTelemetryPill icon={ShieldAlert} label="Risk" value={result?.overall_level ?? "STANDBY"} tone="red" />
+        </div>
       </div>
     </header>
   );
@@ -327,9 +329,9 @@ function MissionHeader({ loading, result }) {
 
 const MemoMissionHeader = memo(MissionHeader);
 
-function AdminShortcut() {
+function AdminShortcut({ floating = false }) {
   return (
-    <a className="admin-shortcut" href="/admin" title="Open admin login">
+    <a className={`admin-shortcut${floating ? " admin-shortcut-floating" : ""}`} href="/admin" title="Open admin login">
       <LockKeyhole className="h-4 w-4" />
       Admin Login
     </a>
@@ -348,7 +350,7 @@ function TermsGate({ onAccept }) {
   return (
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
       <div className="scanline" />
-      <AdminShortcut />
+      <AdminShortcut floating />
       <div className="consent-shell">
         <section className="consent-panel">
           <div className="classification">

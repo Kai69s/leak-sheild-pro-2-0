@@ -136,6 +136,14 @@ button {
   color: var(--rose);
 }
 
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
 .hero-grid {
   display: grid;
   grid-template-columns: minmax(0, 0.92fr) minmax(340px, 0.85fr);
@@ -878,33 +886,51 @@ button {
 }
 
 .admin-shortcut {
-  position: fixed;
-  top: 1rem;
-  right: 1rem;
-  z-index: 30;
+  position: relative;
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 0.45rem;
-  min-height: 2.35rem;
-  border: 1px solid rgba(103, 232, 249, 0.28);
-  background: rgba(2, 6, 23, 0.78);
-  color: #dff7ff;
-  padding: 0 0.85rem;
-  font-size: 0.78rem;
-  font-weight: 800;
+  min-height: 2.7rem;
+  border: 1px solid rgba(103, 232, 249, 0.72);
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.2), rgba(15, 23, 42, 0.86)),
+    rgba(2, 6, 23, 0.84);
+  color: #f0fdff;
+  padding: 0 1rem;
+  font-size: 0.82rem;
+  font-weight: 900;
   text-decoration: none;
-  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
+  white-space: nowrap;
+  box-shadow:
+    inset 0 0 18px rgba(103, 232, 249, 0.12),
+    0 0 28px rgba(34, 211, 238, 0.18),
+    0 14px 40px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(16px);
   transition:
     border-color 0.16s ease,
+    box-shadow 0.16s ease,
     background 0.16s ease,
     transform 0.16s ease;
 }
 
 .admin-shortcut:hover {
-  border-color: rgba(103, 232, 249, 0.62);
-  background: rgba(8, 18, 36, 0.9);
+  border-color: rgba(165, 243, 252, 0.95);
+  background:
+    linear-gradient(135deg, rgba(34, 211, 238, 0.3), rgba(15, 23, 42, 0.92)),
+    rgba(2, 6, 23, 0.92);
+  box-shadow:
+    inset 0 0 18px rgba(103, 232, 249, 0.18),
+    0 0 34px rgba(34, 211, 238, 0.28),
+    0 16px 42px rgba(0, 0, 0, 0.34);
   transform: translateY(-1px);
+}
+
+.admin-shortcut-floating {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 30;
 }
 
 .consent-shell,
@@ -1246,6 +1272,15 @@ button {
 }
 
 @media (max-width: 1180px) {
+  .mission-header {
+    flex-wrap: wrap;
+  }
+
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
   .hero-grid,
   .ops-grid,
   .analysis-grid {
