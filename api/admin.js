@@ -1,8 +1,8 @@
 const crypto = require("crypto");
 const { clearAuditRecords, listAuditRecords } = require("./_auditStore");
 
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@leakshield.local";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "LeakShieldAdmin!2026";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET || crypto.createHash("sha256").update(`${ADMIN_EMAIL}:${ADMIN_PASSWORD}`).digest("hex");
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
@@ -46,6 +46,9 @@ module.exports = function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
 
   if (req.method === "POST") {
+    if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+      return json(res, 503, { detail: "Admin credentials are not configured" });
+    }
     const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
     if (body.email !== ADMIN_EMAIL || body.password !== ADMIN_PASSWORD) {
       return json(res, 401, { detail: "Invalid admin credentials" });
