@@ -39,6 +39,39 @@ button {
   cursor: pointer;
 }
 
+.mission-shell::before,
+.scanline,
+.orbit-sphere,
+.deep-halo,
+.sphere-core,
+.wireframe-shell,
+.mesh-layer,
+.orbit-ring,
+.radar-sweep,
+.equator-beam,
+.core-aperture,
+.satellite-field,
+.satellite-dot,
+.floating-card,
+.risk-reactor,
+.recommendation-card::before,
+.finding-card::before {
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+
+.editor-shell,
+.history-list,
+.finding-grid,
+.audit-json {
+  contain: layout paint;
+}
+
+.history-list,
+.audit-json {
+  overscroll-behavior: contain;
+}
+
 .mission-shell {
   position: relative;
   background:

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -42,6 +42,15 @@ const levels = {
 const orbitSatellites = Array.from({ length: 26 }, (_, index) => index);
 const orbitMeridians = Array.from({ length: 14 }, (_, index) => index);
 const orbitLatitudes = Array.from({ length: 9 }, (_, index) => index);
+const orbitMeridianNodes = orbitMeridians.map((item) => (
+  <span key={`m-${item}`} className="meridian" style={{ "--i": item }} />
+));
+const orbitLatitudeNodes = orbitLatitudes.map((item) => (
+  <span key={`l-${item}`} className="latitude" style={{ "--i": item }} />
+));
+const orbitSatelliteNodes = orbitSatellites.map((item) => (
+  <span key={item} className="satellite-dot" style={{ "--i": item }} />
+));
 const SESSION_KEY = "leakshield.sessionId";
 
 function ensureSessionId() {
@@ -76,6 +85,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [clientSessionId] = useState(ensureSessionId);
+  const deferredFindingFilter = useDeferredValue(findingFilter);
   const showTextMode = useCallback(() => setScanMode("text"), []);
   const showFolderMode = useCallback(() => setScanMode("project-folder"), []);
   const showWebsiteMode = useCallback(() => setScanMode("website"), []);
@@ -188,14 +198,14 @@ export default function App() {
 
   const filteredFindings = useMemo(() => {
     if (!result?.findings) return [];
-    const needle = findingFilter.toLowerCase();
+    const needle = deferredFindingFilter.toLowerCase();
     return result.findings.filter((item) =>
       [item.secret_type, item.risk_level, item.rule_id, item.context_snippet, item.file_path, item.source_address]
         .join(" ")
         .toLowerCase()
         .includes(needle)
     );
-  }, [result, findingFilter]);
+  }, [result, deferredFindingFilter]);
 
   if (isAdminPath) return <AdminDashboard />;
 
@@ -751,12 +761,8 @@ function OrbitSphere({ result, loading }) {
       <div className="deep-halo" />
       <div className="sphere-core" />
       <div className="wireframe-shell">
-        {orbitMeridians.map((item) => (
-          <span key={`m-${item}`} className="meridian" style={{ "--i": item }} />
-        ))}
-        {orbitLatitudes.map((item) => (
-          <span key={`l-${item}`} className="latitude" style={{ "--i": item }} />
-        ))}
+        {orbitMeridianNodes}
+        {orbitLatitudeNodes}
         <span className="mesh-layer mesh-layer-a" />
         <span className="mesh-layer mesh-layer-b" />
         <span className="mesh-layer mesh-layer-c" />
@@ -769,9 +775,7 @@ function OrbitSphere({ result, loading }) {
       <div className="equator-beam" />
       <div className="core-aperture" />
       <div className="satellite-field">
-        {orbitSatellites.map((item) => (
-          <span key={item} className="satellite-dot" style={{ "--i": item }} />
-        ))}
+        {orbitSatelliteNodes}
       </div>
     </div>
   );
