@@ -123,7 +123,6 @@ function groupUsers(list) {
       finding_count: 0,
       critical_count: 0,
       latest_ip: "unknown",
-      latest_location_status: "unknown",
       latest_risk: "LOW",
       records: []
     };
@@ -135,7 +134,6 @@ function groupUsers(list) {
     user.first_seen_at = seenAt[0];
     user.latest_seen_at = seenAt[seenAt.length - 1];
     user.latest_ip = normalized.request_context?.ip_address || user.latest_ip;
-    user.latest_location_status = normalized.browser_location?.status || user.latest_location_status;
     user.latest_risk = normalized.result_shown_to_user?.overall_level || user.latest_risk;
     users.set(normalized.user_id, user);
   }

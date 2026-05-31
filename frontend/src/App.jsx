@@ -42,17 +42,7 @@ const levels = {
 const orbitSatellites = Array.from({ length: 26 }, (_, index) => index);
 const orbitMeridians = Array.from({ length: 14 }, (_, index) => index);
 const orbitLatitudes = Array.from({ length: 9 }, (_, index) => index);
-const TERMS_KEY = "leakshield.termsAccepted";
 const SESSION_KEY = "leakshield.sessionId";
-const LOCATION_KEY = "leakshield.locationConsent";
-
-function readJson(key, fallback) {
-  try {
-    return JSON.parse(localStorage.getItem(key) || "null") ?? fallback;
-  } catch {
-    return fallback;
-  }
-}
 
 function ensureSessionId() {
   const existing = localStorage.getItem(SESSION_KEY);
@@ -60,32 +50,6 @@ function ensureSessionId() {
   const id = crypto.randomUUID();
   localStorage.setItem(SESSION_KEY, id);
   return id;
-}
-
-function requestBrowserLocation() {
-  return new Promise((resolve) => {
-    if (!navigator.geolocation) {
-      resolve({ status: "unavailable" });
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (position) =>
-        resolve({
-          status: "granted",
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy_meters: position.coords.accuracy,
-          captured_at: new Date().toISOString()
-        }),
-      (error) =>
-        resolve({
-          status: "denied",
-          reason: error.message,
-          captured_at: new Date().toISOString()
-        }),
-      { enableHighAccuracy: false, maximumAge: 300000, timeout: 8000 }
-    );
-  });
 }
 
 function riskColor(level) {
@@ -111,9 +75,7 @@ export default function App() {
   const [findingFilter, setFindingFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState(() => localStorage.getItem(TERMS_KEY) === "true");
   const [clientSessionId] = useState(ensureSessionId);
-  const [clientLocation, setClientLocation] = useState(() => readJson(LOCATION_KEY, { status: "not_requested" }));
   const showTextMode = useCallback(() => setScanMode("text"), []);
   const showFolderMode = useCallback(() => setScanMode("project-folder"), []);
   const showWebsiteMode = useCallback(() => setScanMode("website"), []);
@@ -132,34 +94,12 @@ export default function App() {
     refreshHistory().catch(() => {});
   }, [refreshHistory]);
 
-  const acceptTerms = useCallback(async () => {
-    const location = await requestBrowserLocation();
-    const acceptedAt = new Date().toISOString();
-    localStorage.setItem(TERMS_KEY, "true");
-    localStorage.setItem(`${TERMS_KEY}.at`, acceptedAt);
-    localStorage.setItem(LOCATION_KEY, JSON.stringify(location));
-    setClientLocation(location);
-    setTermsAccepted(true);
-  }, []);
 
   const auditMetadata = useCallback(
     () => ({
-      client_session_id: clientSessionId,
-      consent: {
-        accepted: termsAccepted,
-        accepted_at: localStorage.getItem(`${TERMS_KEY}.at`) || new Date().toISOString(),
-        scope: [
-          "scan_input",
-          "scan_results",
-          "session_activity",
-          "browser_location_when_permission_is_granted",
-          "ip_address_and_request_security_metadata",
-          "mac_address_not_available_in_browser"
-        ]
-      },
-      client_location: clientLocation
+      client_session_id: clientSessionId
     }),
-    [clientLocation, clientSessionId, termsAccepted]
+    [clientSessionId]
   );
 
   const scan = useCallback(async () => {
@@ -259,9 +199,6 @@ export default function App() {
 
   if (isAdminPath) return <AdminDashboard />;
 
-  if (!termsAccepted) {
-    return <TermsGate onAccept={acceptTerms} />;
-  }
 
   return (
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100" onKeyDown={startScanFromInput}>
@@ -339,149 +276,6 @@ function AdminShortcut({ floating = false }) {
   );
 }
 
-function TermsGate({ onAccept }) {
-  const [accepting, setAccepting] = useState(false);
-
-  async function accept() {
-    setAccepting(true);
-    await onAccept();
-    setAccepting(false);
-  }
-
-  return (
-    <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
-      <div className="scanline" />
-      <AdminShortcut floating />
-      <div className="consent-shell">
-        <section className="consent-panel">
-          <div className="classification">
-            <ShieldCheck className="h-4 w-4" />
-            CONSENT AND SECURITY NOTICE
-          </div>
-          <h1>Terms and Conditions</h1>
-          <p>
-            LeakShield Pro is a security and exposure-scanning tool. Before using it, please read these terms carefully.
-            By selecting Accept and Continue, you confirm that you understand what information may be processed, why it is
-            processed, and that you have permission to submit the material you scan.
-          </p>
-          <div className="terms-detail">
-            <article>
-              <strong>1. Purpose of the service</strong>
-              <span>
-                LeakShield Pro scans submitted text, project files, and website links to identify exposed secrets,
-                security-sensitive strings, credentials, risky configuration patterns, and related findings. The tool is
-                intended for defensive security review, project hardening, audit preparation, and abuse prevention.
-              </span>
-            </article>
-            <article>
-              <strong>2. Information you submit for scanning</strong>
-              <span>
-                Depending on the scan mode you choose, the system may process and save the text you paste, the website
-                address you enter, the selected project file names and file contents made available to the scanner, and
-                the source name or label shown inside the app. You should only submit information that you own, control,
-                or have clear authorization to review.
-              </span>
-            </article>
-            <article>
-              <strong>3. Scan results saved for admin review</strong>
-              <span>
-                The exact result shown to you may be stored, including the overall risk level, detected finding count,
-                secret or exposure type, rule identifiers, file path or source address when available, context snippets,
-                risk explanations, recommendations, and timestamps. This is saved so an authorized admin can verify what
-                was detected, investigate misuse, improve review quality, and support security reporting.
-              </span>
-            </article>
-            <article>
-              <strong>4. Session and activity information</strong>
-              <span>
-                The app creates a browser session identifier so scans from the same browser can be grouped together for
-                audit review. Activity records may include scan time, selected scan mode, submitted target, request user
-                agent, IP address, IP-related request headers made available by the hosting platform, approximate
-                IP-derived country, region, city, timezone when infrastructure provides it, and whether the browser
-                location request was granted, denied, or unavailable.
-              </span>
-            </article>
-            <article>
-              <strong>5. IP address and network security data</strong>
-              <span>
-                LeakShield Pro may save the public IP address connected to the scan request and related network metadata
-                supplied by Vercel or other hosting infrastructure. This information is used only for admin security
-                review, abuse prevention, threat investigation, rate-limit decisions, and identifying suspicious access
-                patterns. IP address information is not displayed publicly to other users.
-              </span>
-            </article>
-            <article>
-              <strong>6. Location permission</strong>
-              <span>
-                After acceptance, your browser may ask for location access. If you allow it, the app may save latitude,
-                longitude, accuracy, and capture time for security monitoring and anti-abuse review. If you deny the
-                request, LeakShield Pro records only that location was denied or unavailable. Browser location is used for
-                security context and is not required to change scan results.
-              </span>
-            </article>
-            <article>
-              <strong>7. MAC address status</strong>
-              <span>
-                Standard web browsers do not expose a device MAC address to websites, and LeakShield Pro does not attempt
-                to bypass browser privacy protections or fingerprint a MAC address. The admin audit record may show that
-                the MAC address is not available in the browser. If a future native, managed-device, or enterprise agent
-                ever collects device-level identifiers, it should require a separate, explicit permission notice before use.
-              </span>
-            </article>
-            <article>
-              <strong>8. VPN and abuse-prevention checks</strong>
-              <span>
-                The system may record VPN, proxy, or suspicious-network status when a legitimate IP-intelligence provider
-                is configured. If no provider is configured, the status may be saved as unknown. Any future blocking rules
-                are intended to protect the service from abuse, automated misuse, unauthorized probing, or activity that
-                could harm the project or its users.
-              </span>
-            </article>
-            <article>
-              <strong>9. Admin dashboard access</strong>
-              <span>
-                Stored audit records are available only through the protected admin dashboard. Admin review is limited to
-                security monitoring, scan verification, abuse prevention, troubleshooting, and project improvement. Admin
-                access should not be used to expose, sell, or misuse submitted information.
-              </span>
-            </article>
-            <article>
-              <strong>10. Private-data protection</strong>
-              <span>
-                Because scan submissions, results, IP address data, location data, and security metadata can be highly
-                private, LeakShield Pro treats audit records as restricted admin-only information. API responses are marked
-                as non-cacheable, admin access requires authentication, and audit details are intended to be reviewed only
-                for security and operational purposes. Do not share admin credentials or export audit records unless there
-                is a legitimate security reason.
-              </span>
-            </article>
-            <article>
-              <strong>11. User responsibility</strong>
-              <span>
-                You agree not to submit stolen data, third-party private code, credentials, systems, or websites unless
-                you have permission to scan them. If you accidentally submit sensitive information, the scan may still be
-                logged exactly as shown so the project can maintain an accurate security audit trail.
-              </span>
-            </article>
-            <article>
-              <strong>12. Consent to continue</strong>
-              <span>
-                By continuing, you give permission for LeakShield Pro to process and store the information described
-                above for legitimate security, audit, and administrative purposes. If you do not agree with these terms,
-                do not continue using the scanner.
-              </span>
-            </article>
-          </div>
-          <button onClick={accept} disabled={accepting} className="primary-command" title="Accept terms">
-            {accepting ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
-            Accept and Continue
-          </button>
-        </section>
-      </div>
-    </main>
-  );
-}
-
 function AdminDashboard() {
   const [token, setToken] = useState(adminToken());
   const [email, setEmail] = useState("");
@@ -500,7 +294,6 @@ function AdminDashboard() {
       scans: records.length,
       findings: records.reduce((sum, record) => sum + (record.result_shown_to_user?.finding_count || 0), 0),
       critical: records.filter((record) => record.result_shown_to_user?.overall_level === "CRITICAL").length,
-      locations: records.filter((record) => record.browser_location?.status === "granted").length
     }),
     [records, users.length]
   );
@@ -692,9 +485,7 @@ function AuditUserBox({ user }) {
         critical_count: user.critical_count,
         latest_risk: user.latest_risk,
         latest_ip: user.latest_ip,
-        latest_location_status: user.latest_location_status,
         latest_request_context: latest.request_context,
-        latest_browser_location: latest.browser_location
       }, null, 2)}</pre>
 
       <h3>Complete Saved Data</h3>
@@ -712,7 +503,6 @@ function AuditUserBox({ user }) {
                 record_id: record.id,
                 storage_path: record.storage_path,
                 consent: record.consent,
-                browser_location: record.browser_location,
                 request_context: record.request_context,
                 submitted_input: record.submitted_input,
                 result_shown_to_user: {

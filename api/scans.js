@@ -101,7 +101,6 @@ async function auditScan(req, payload, mode, result) {
     created_at: new Date().toISOString(),
     session_id: metadata.client_session_id || "unknown",
     consent: metadata.consent || {},
-    browser_location: metadata.client_location || { status: "not_provided" },
     request_context: requestContext(req),
     submitted_input: submittedInput(payload, mode),
     result_shown_to_user: result
