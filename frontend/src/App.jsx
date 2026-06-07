@@ -85,6 +85,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [clientSessionId] = useState(ensureSessionId);
+  const deferredQuery = useDeferredValue(query);
+  const deferredRiskFilter = useDeferredValue(riskFilter);
   const deferredFindingFilter = useDeferredValue(findingFilter);
   const showTextMode = useCallback(() => setScanMode("text"), []);
   const showFolderMode = useCallback(() => setScanMode("project-folder"), []);
@@ -96,9 +98,9 @@ export default function App() {
   }, [content, sourceName, scanMode, websiteUrl, projectFiles]);
 
   const refreshHistory = useCallback(async () => {
-    const items = await listScans({ q: query, riskLevel: riskFilter });
+    const items = await listScans({ q: deferredQuery, riskLevel: deferredRiskFilter });
     setHistory(items);
-  }, [query, riskFilter]);
+  }, [deferredQuery, deferredRiskFilter]);
 
   useEffect(() => {
     refreshHistory().catch(() => {});

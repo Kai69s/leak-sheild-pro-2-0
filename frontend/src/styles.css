@@ -62,12 +62,23 @@ button {
 
 .editor-shell,
 .history-list,
+.history-item,
+.mission-header,
+.orbit-stage,
+.command-panel,
+.analysis-grid > .mission-panel,
+.metric-tile,
 .finding-grid,
+.finding-card,
+.recommendation-card,
+.address-panel,
+.impact-box,
 .audit-json {
   contain: layout paint;
 }
 
 .history-list,
+.editor-shell textarea,
 .audit-json {
   overscroll-behavior: contain;
 }
@@ -1120,21 +1131,21 @@ button {
 
 @keyframes scanline {
   0% {
-    transform: translateY(-45vh);
+    transform: translate3d(0, -45vh, 0);
   }
   100% {
-    transform: translateY(110vh);
+    transform: translate3d(0, 110vh, 0);
   }
 }
 
 @keyframes lightSweep {
   0%,
   100% {
-    transform: translateX(-8%);
+    transform: translate3d(-8%, 0, 0);
     opacity: 0.45;
   }
   50% {
-    transform: translateX(8%);
+    transform: translate3d(8%, 0, 0);
     opacity: 0.78;
   }
 }
@@ -1142,11 +1153,11 @@ button {
 @keyframes riseIn {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: translate3d(0, 18px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
@@ -1179,10 +1190,10 @@ button {
 @keyframes floatSphere {
   0%,
   100% {
-    transform: translateY(0) rotate(-1deg);
+    transform: translate3d(0, 0, 0) rotate(-1deg);
   }
   50% {
-    transform: translateY(-16px) rotate(1deg);
+    transform: translate3d(0, -16px, 0) rotate(1deg);
   }
 }
 
@@ -1190,11 +1201,11 @@ button {
   0%,
   100% {
     opacity: 0.58;
-    transform: scale(0.98);
+    transform: translate3d(0, 0, 0) scale(0.98);
   }
   50% {
     opacity: 1;
-    transform: scale(1.04);
+    transform: translate3d(0, 0, 0) scale(1.04);
   }
 }
 
@@ -1232,11 +1243,11 @@ button {
   0%,
   100% {
     opacity: 0.38;
-    transform: scale(0.8);
+    transform: translate3d(0, 0, 0) scale(0.8);
   }
   50% {
     opacity: 1;
-    transform: scale(1.25);
+    transform: translate3d(0, 0, 0) scale(1.25);
   }
 }
 
@@ -1262,11 +1273,11 @@ button {
   0%,
   100% {
     opacity: 0.55;
-    transform: scale(0.82);
+    transform: translate3d(0, 0, 0) scale(0.82);
   }
   50% {
     opacity: 1;
-    transform: scale(1.2);
+    transform: translate3d(0, 0, 0) scale(1.2);
   }
 }
 
@@ -1283,40 +1294,40 @@ button {
 @keyframes cardHover {
   0%,
   100% {
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
   50% {
-    transform: translateY(-8px);
+    transform: translate3d(0, -8px, 0);
   }
 }
 
 @keyframes panelIn {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translate3d(0, 14px, 0);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @keyframes reactorPulse {
   0%,
   100% {
-    transform: scale(1);
+    transform: translate3d(0, 0, 0) scale(1);
   }
   50% {
-    transform: scale(1.025);
+    transform: translate3d(0, 0, 0) scale(1.025);
   }
 }
 
 @keyframes topTrace {
   0% {
-    transform: translateX(-100%);
+    transform: translate3d(-100%, 0, 0);
   }
   100% {
-    transform: translateX(100%);
+    transform: translate3d(100%, 0, 0);
   }
 }
 
