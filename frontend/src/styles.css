@@ -430,7 +430,7 @@ button {
 .floating-card {
   position: absolute;
   z-index: 3;
-  width: min(22rem, 86vw);
+  width: min(22rem, calc(100% - 1.6rem));
   border-radius: 8px;
   padding: 1rem;
   transform: translate3d(0, 0, 0);
@@ -450,12 +450,12 @@ button {
 }
 
 .floating-card-a {
-  left: -3%;
+  left: 0.8rem;
   top: 17%;
 }
 
 .floating-card-b {
-  right: -2%;
+  right: 0.8rem;
   bottom: 12%;
   border-color: rgba(251, 113, 133, 0.28);
 }
