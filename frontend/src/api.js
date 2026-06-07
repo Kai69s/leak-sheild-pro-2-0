@@ -54,18 +54,21 @@ export function adminLogin(email, password) {
   return request("/api/admin", {
     method: "POST",
     body: JSON.stringify({ email, password })
-  }).then((session) => {
-    localStorage.setItem(ADMIN_TOKEN_KEY, session.token);
-    return session;
   });
 }
 
 export function adminToken() {
-  return localStorage.getItem(ADMIN_TOKEN_KEY) || "";
+  adminLogout();
+  return "";
 }
 
 export function adminLogout() {
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
+  try {
+    localStorage.removeItem(ADMIN_TOKEN_KEY);
+    sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // Storage can be unavailable in strict browser privacy modes.
+  }
 }
 
 export function fetchAdminAudit(token = adminToken()) {
