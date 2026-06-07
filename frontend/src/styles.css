@@ -298,27 +298,82 @@ button {
   width: min(34rem, 78vw);
   aspect-ratio: 1;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
+  border: 1px solid rgba(103, 232, 249, 0.26);
   background:
-    conic-gradient(from 210deg, rgba(94, 234, 212, 0.18), transparent 26%, rgba(251, 113, 133, 0.14), transparent 58%, rgba(96, 165, 250, 0.18)),
-    radial-gradient(circle at center, rgba(15, 23, 42, 0.2), rgba(2, 6, 23, 0.94) 62%, rgba(15, 23, 42, 0.16));
+    radial-gradient(circle at 50% 50%, rgba(103, 232, 249, 0.22), transparent 6%),
+    radial-gradient(circle at 50% 50%, rgba(94, 234, 212, 0.12), transparent 34%),
+    conic-gradient(from 210deg, rgba(94, 234, 212, 0.22), transparent 21%, rgba(251, 113, 133, 0.16), transparent 58%, rgba(96, 165, 250, 0.22)),
+    radial-gradient(circle at center, rgba(15, 23, 42, 0.18), rgba(2, 6, 23, 0.95) 64%, rgba(15, 23, 42, 0.16));
   overflow: hidden;
   transform: translate3d(0, 0, 0);
+  contain: layout paint;
+}
+
+.orbit-sphere::before,
+.orbit-sphere::after,
+.sphere-core::before,
+.sphere-core::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+}
+
+.orbit-sphere::before {
+  inset: -1px;
+  z-index: 4;
+  border-radius: inherit;
+  background:
+    conic-gradient(from -18deg, transparent 0 18deg, rgba(103, 232, 249, 0.34) 28deg, rgba(94, 234, 212, 0.12) 52deg, transparent 72deg 360deg);
+  opacity: 0.72;
+  animation: rotateSlow 7s linear infinite;
+  will-change: transform;
+}
+
+.orbit-sphere::after {
+  inset: 12%;
+  z-index: 5;
+  border-radius: inherit;
+  border: 1px solid rgba(103, 232, 249, 0.38);
+  background:
+    linear-gradient(90deg, transparent 49.7%, rgba(103, 232, 249, 0.52) 50%, transparent 50.3%),
+    linear-gradient(0deg, transparent 49.7%, rgba(103, 232, 249, 0.44) 50%, transparent 50.3%);
+  opacity: 0.76;
 }
 
 .deep-halo {
   position: absolute;
+  z-index: 1;
   inset: 7%;
   border-radius: 999px;
-  border: 1px dashed rgba(148, 163, 184, 0.24);
+  border: 1px dashed rgba(103, 232, 249, 0.24);
+  animation: rotateReverse 28s linear infinite;
+  will-change: transform;
 }
 
 .sphere-core {
   position: absolute;
-  inset: 30%;
+  z-index: 7;
+  inset: 34%;
   border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--orbit-color), white 30%);
-  background: color-mix(in srgb, var(--orbit-color), transparent 72%);
+  border: 1px solid color-mix(in srgb, var(--orbit-color), white 36%);
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--orbit-color), white 18%) 0 18%, transparent 20%),
+    conic-gradient(from 0deg, rgba(103, 232, 249, 0.08), color-mix(in srgb, var(--orbit-color), transparent 60%), rgba(251, 113, 133, 0.1), color-mix(in srgb, var(--orbit-color), transparent 70%));
+  animation: coreBreathe 2.8s ease-in-out infinite;
+}
+
+.sphere-core::before {
+  inset: 21%;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  opacity: 0.7;
+}
+
+.sphere-core::after {
+  inset: 42%;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--orbit-color), white 30%);
+  opacity: 0.9;
 }
 
 .wireframe-shell,
@@ -333,12 +388,16 @@ button {
 }
 
 .wireframe-shell {
+  z-index: 2;
   background:
-    linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(148, 163, 184, 0.12) 1px, transparent 1px);
-  background-size: 42px 42px;
+    repeating-conic-gradient(from 0deg, rgba(103, 232, 249, 0.18) 0 0.6deg, transparent 0.6deg 13deg),
+    linear-gradient(rgba(148, 163, 184, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.09) 1px, transparent 1px);
+  background-size: auto, 42px 42px, 42px 42px;
   mask-image: radial-gradient(circle, black 0 59%, transparent 60%);
-  opacity: 0.55;
+  opacity: 0.7;
+  animation: rotateReverse 36s linear infinite;
+  will-change: transform;
 }
 
 .meridian,
@@ -351,12 +410,18 @@ button {
 }
 
 .meridian {
-  border-left: 1px solid rgba(94, 234, 212, 0.18);
+  border-left: 1px solid rgba(103, 232, 249, 0.18);
   transform: rotate(calc(var(--i) * 13deg));
 }
 
 .latitude {
-  display: none;
+  display: block;
+  inset: auto 13%;
+  top: calc(14% + var(--i) * 8%);
+  height: 1px;
+  border-top: 1px solid rgba(103, 232, 249, 0.15);
+  border-radius: 999px;
+  opacity: 0.66;
 }
 
 .mesh-layer {
@@ -364,6 +429,7 @@ button {
 }
 
 .orbit-ring {
+  z-index: 3;
   inset: 16%;
   border: 1px solid rgba(94, 234, 212, 0.34);
 }
@@ -381,41 +447,55 @@ button {
 .orbit-ring-d {
   inset: 8%;
   border-style: dashed;
-  border-color: rgba(96, 165, 250, 0.24);
+  border-color: rgba(96, 165, 250, 0.32);
+  animation: rotateSlow 20s linear infinite;
+  will-change: transform;
 }
 
 .radar-sweep {
-  background: conic-gradient(from 0deg, rgba(94, 234, 212, 0.22), transparent 62deg);
-  opacity: 0.46;
-  animation: rotateSlow 12s linear infinite;
+  z-index: 6;
+  background:
+    conic-gradient(from 0deg, rgba(255, 255, 255, 0.48), rgba(103, 232, 249, 0.3) 12deg, rgba(94, 234, 212, 0.08) 48deg, transparent 76deg);
+  opacity: 0.58;
+  animation: rotateSlow 5.6s linear infinite;
   will-change: transform;
 }
 
 .equator-beam {
+  z-index: 8;
   inset: 50% 9% auto;
   height: 1px;
   border-radius: 0;
-  background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.85), transparent);
+  background: linear-gradient(90deg, transparent, rgba(103, 232, 249, 0.95), transparent);
+  animation: beamPulse 2.4s ease-in-out infinite;
 }
 
 .core-aperture {
-  inset: 45%;
+  z-index: 9;
+  inset: 46%;
   background: var(--orbit-color);
-  opacity: 0.75;
+  opacity: 0.9;
+  animation: aperturePing 1.7s ease-in-out infinite;
 }
 
 .satellite-field {
+  z-index: 10;
   inset: 8%;
+  animation: rotateReverse 42s linear infinite;
+  will-change: transform;
 }
 
 .satellite-dot {
   position: absolute;
-  width: 0.4rem;
-  height: 0.4rem;
+  width: 0.48rem;
+  height: 0.48rem;
   border-radius: 999px;
   left: calc(50% + cos(calc(var(--i) * 41deg)) * 47%);
   top: calc(50% + sin(calc(var(--i) * 41deg)) * 47%);
   background: color-mix(in srgb, var(--orbit-color), white 28%);
+  opacity: 0.82;
+  animation: scanBlink 2.6s ease-in-out infinite;
+  animation-delay: calc(var(--i) * -110ms);
 }
 
 .satellite-dot:nth-child(5n),
@@ -424,7 +504,7 @@ button {
 }
 
 .orbit-sphere-hot .radar-sweep {
-  animation-duration: 4s;
+  animation-duration: 2.8s;
 }
 
 .floating-card {
@@ -989,6 +1069,61 @@ button {
   }
 }
 
+@keyframes rotateReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes coreBreathe {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes beamPulse {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scaleX(0.72);
+  }
+  50% {
+    opacity: 0.94;
+    transform: scaleX(1);
+  }
+}
+
+@keyframes aperturePing {
+  0%,
+  100% {
+    opacity: 0.74;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.18);
+  }
+}
+
+@keyframes scanBlink {
+  0%,
+  100% {
+    opacity: 0.42;
+    transform: scale(0.78);
+  }
+  45%,
+  58% {
+    opacity: 1;
+    transform: scale(1.28);
+  }
+}
+
 @media (max-width: 1180px) {
   .mission-header {
     position: relative;
@@ -1079,7 +1214,7 @@ button {
 
   .orbit-sphere {
     margin: 1.2rem auto;
-    width: min(28rem, 88vw);
+    width: min(21.5rem, calc(100vw - 1.8rem));
   }
 
   .floating-card {
