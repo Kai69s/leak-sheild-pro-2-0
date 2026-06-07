@@ -7,7 +7,10 @@ const ADMIN_TOKEN_KEY = "leakshield.adminToken";
 
 async function request(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
+    cache: "no-store",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    referrerPolicy: "no-referrer",
     ...options
   });
   if (!response.ok) {

@@ -1,9 +1,16 @@
 const crypto = require("crypto");
+const dns = require("dns").promises;
+const net = require("net");
 const { addAuditRecord } = require("./_auditStore");
+const { parseJsonBody, rateLimit, setApiSecurityHeaders } = require("./_security");
 
 const MAX_FOLDER_FILES = 140;
 const MAX_FILE_BYTES = 220_000;
+const MAX_TEXT_BYTES = 420_000;
+const MAX_PROJECT_TOTAL_BYTES = 1_200_000;
 const MAX_WEBSITE_ASSETS = 36;
+const MAX_URL_LENGTH = 2048;
+const MAX_WEBSITE_REDIRECTS = 4;
 const FETCH_TIMEOUT_MS = 6500;
 const MAX_CONCURRENCY = 6;
 
@@ -105,6 +112,37 @@ async function auditScan(req, payload, mode, result) {
     submitted_input: submittedInput(payload, mode),
     result_shown_to_user: result
   });
+}
+
+function httpError(message, statusCode) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function assertStringBytes(value, maxBytes, label) {
+  if (Buffer.byteLength(String(value || ""), "utf8") > maxBytes) {
+    throw httpError(`${label} is too large.`, 413);
+  }
+}
+
+function validatePayload(payload, mode) {
+  assertStringBytes(payload.source_name || "", 512, "source_name");
+  if (mode === "website") {
+    assertStringBytes(payload.website_url || payload.url || "", MAX_URL_LENGTH, "website_url");
+    return;
+  }
+  if (mode === "project-folder") {
+    const files = Array.isArray(payload.files) ? payload.files : [];
+    let totalBytes = 0;
+    for (const file of files.slice(0, MAX_FOLDER_FILES)) {
+      assertStringBytes(file?.path || "", 1024, "file path");
+      totalBytes += Buffer.byteLength(String(file?.content || ""), "utf8");
+      if (totalBytes > MAX_PROJECT_TOTAL_BYTES) throw httpError("Uploaded project content is too large.", 413);
+    }
+    return;
+  }
+  assertStringBytes(payload.content || "", MAX_TEXT_BYTES, "content");
 }
 
 const rules = [
@@ -524,25 +562,112 @@ function isTextualResponse(url, contentType) {
   );
 }
 
-async function fetchText(url) {
+function isPrivateIPv4(address) {
+  const parts = address.split(".").map((part) => Number(part));
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const [a, b] = parts;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    a >= 224 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19))
+  );
+}
+
+function isPrivateIPv6(address) {
+  const value = address.toLowerCase();
+  if (value === "::" || value === "::1") return true;
+  if (value.startsWith("fc") || value.startsWith("fd") || value.startsWith("fe80") || value.startsWith("ff")) return true;
+  const mapped = value.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  return mapped ? isPrivateIPv4(mapped[1]) : false;
+}
+
+function isPrivateAddress(address) {
+  const version = net.isIP(address);
+  if (version === 4) return isPrivateIPv4(address);
+  if (version === 6) return isPrivateIPv6(address);
+  return true;
+}
+
+function isBlockedHostname(hostname) {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return (
+    normalized === "localhost" ||
+    normalized.endsWith(".localhost") ||
+    normalized.endsWith(".local") ||
+    normalized.endsWith(".internal") ||
+    normalized.endsWith(".test") ||
+    normalized.endsWith(".invalid")
+  );
+}
+
+async function assertPublicHttpUrl(rawUrl) {
+  let parsed;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw httpError("A valid website URL is required.", 400);
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw httpError("Only http and https website URLs can be scanned.", 400);
+  }
+  if (parsed.username || parsed.password) {
+    throw httpError("Website URLs with embedded credentials are not allowed.", 400);
+  }
+  if (parsed.href.length > MAX_URL_LENGTH || isBlockedHostname(parsed.hostname)) {
+    throw httpError("This website URL is not allowed for public scanning.", 400);
+  }
+
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
+  if (net.isIP(hostname)) {
+    if (isPrivateAddress(hostname)) throw httpError("Private or internal network addresses cannot be scanned.", 400);
+    return parsed.toString();
+  }
+
+  let addresses;
+  try {
+    addresses = await dns.lookup(hostname, { all: true, verbatim: false });
+  } catch {
+    throw httpError("Website hostname could not be resolved.", 422);
+  }
+  if (!addresses.length || addresses.some((item) => isPrivateAddress(item.address))) {
+    throw httpError("Private or internal network addresses cannot be scanned.", 400);
+  }
+  return parsed.toString();
+}
+
+async function fetchText(url, redirectCount = 0) {
+  const safeUrl = await assertPublicHttpUrl(url);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(url, {
-      redirect: "follow",
+    const response = await fetch(safeUrl, {
+      redirect: "manual",
       signal: controller.signal,
       headers: {
         "user-agent": "LeakShield-Pro-Public-Exposure-Scanner/2.0",
         accept: "text/html,application/javascript,application/json,text/plain,application/xml;q=0.9,*/*;q=0.2"
       }
     });
+    if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
+      if (redirectCount >= MAX_WEBSITE_REDIRECTS) return { url: safeUrl, ok: false, status: response.status, content: "" };
+      const nextUrl = new URL(response.headers.get("location"), response.url || safeUrl).toString();
+      return fetchText(nextUrl, redirectCount + 1);
+    }
     const contentType = response.headers.get("content-type") || "";
     if (!response.ok || !isTextualResponse(response.url || url, contentType)) {
-      return { url, ok: false, status: response.status, content: "" };
+      return { url: safeUrl, ok: false, status: response.status, content: "" };
     }
-    return { url: response.url || url, ok: true, status: response.status, content: (await response.text()).slice(0, MAX_FILE_BYTES) };
+    return { url: response.url || safeUrl, ok: true, status: response.status, content: (await response.text()).slice(0, MAX_FILE_BYTES) };
   } catch (error) {
-    return { url, ok: false, status: 0, content: "", error: error.name || "fetch-failed" };
+    if (error.statusCode) throw error;
+    return { url: safeUrl, ok: false, status: 0, content: "", error: error.name || "fetch-failed" };
   } finally {
     clearTimeout(timer);
   }
@@ -617,21 +742,17 @@ async function scanWebsite(payload) {
 }
 
 module.exports = async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Cache-Control", "no-store");
-  res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("Referrer-Policy", "no-referrer");
-  res.setHeader("Permissions-Policy", "camera=(), microphone=(), payment=(), usb=()");
+  setApiSecurityHeaders(req, res, { methods: "GET,POST,OPTIONS" });
 
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method === "GET") return res.status(200).json([]);
   if (req.method !== "POST") return res.status(405).json({ detail: "Method not allowed" });
+  if (!rateLimit(req, res, "scan-create", { limit: 35, windowMs: 10 * 60 * 1000 })) return;
 
   try {
-    const payload = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+    const payload = parseJsonBody(req, 1_500_000);
     const mode = payload.mode || (payload.website_url || payload.url ? "website" : Array.isArray(payload.files) ? "project-folder" : "text");
+    validatePayload(payload, mode);
     if (mode === "website") {
       const result = await scanWebsite(payload);
       await auditScan(req, payload, mode, result);
