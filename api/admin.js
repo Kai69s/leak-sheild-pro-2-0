@@ -4,9 +4,47 @@ const { parseJsonBody, rateLimit, safeCredentialEqual, safeStringEqual, setApiSe
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_EXTRA_EMAIL = process.env.ADMIN_EXTRA_EMAIL;
+const ADMIN_EXTRA_PASSWORD = process.env.ADMIN_EXTRA_PASSWORD;
 const SESSION_SECRET =
-  process.env.ADMIN_SESSION_SECRET || crypto.createHash("sha256").update(`${ADMIN_EMAIL}:${ADMIN_PASSWORD}`).digest("hex");
+  process.env.ADMIN_SESSION_SECRET ||
+  crypto.createHash("sha256").update(adminCredentials().map(({ email }) => email).join("|") || "leakshield-admin").digest("hex");
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+
+function appendCredential(credentials, email, password) {
+  if (email && password) credentials.push({ email: String(email), password: String(password) });
+}
+
+function parseAdditionalCredentials() {
+  if (!process.env.ADMIN_ADDITIONAL_CREDENTIALS) return [];
+  try {
+    const parsed = JSON.parse(process.env.ADMIN_ADDITIONAL_CREDENTIALS);
+    return Array.isArray(parsed)
+      ? parsed
+          .filter((item) => item && typeof item === "object")
+          .map((item) => ({ email: item.email, password: item.password }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function adminCredentials() {
+  const credentials = [];
+  appendCredential(credentials, ADMIN_EMAIL, ADMIN_PASSWORD);
+  appendCredential(credentials, ADMIN_EXTRA_EMAIL, ADMIN_EXTRA_PASSWORD);
+  for (const item of parseAdditionalCredentials()) {
+    appendCredential(credentials, item.email, item.password);
+  }
+  return credentials;
+}
+
+function findAdmin(email, password) {
+  return adminCredentials().find(
+    (credential) => safeCredentialEqual(email, credential.email) && safeCredentialEqual(password, credential.password)
+  );
+}
+
 function json(res, status, body) {
   res.status(status).json(body);
 }
@@ -49,7 +87,8 @@ module.exports = async function handler(req, res) {
 
   if (req.method === "POST") {
     if (!rateLimit(req, res, "admin-login", { limit: 8, windowMs: 15 * 60 * 1000 })) return;
-    if (!ADMIN_EMAIL || !ADMIN_PASSWORD) {
+    const credentials = adminCredentials();
+    if (!credentials.length) {
       return json(res, 503, { detail: "Admin credentials are not configured" });
     }
     let body;
@@ -58,10 +97,11 @@ module.exports = async function handler(req, res) {
     } catch (error) {
       return json(res, error.statusCode || 400, { detail: error.message });
     }
-    if (!safeCredentialEqual(body.email, ADMIN_EMAIL) || !safeCredentialEqual(body.password, ADMIN_PASSWORD)) {
+    const admin = findAdmin(body.email, body.password);
+    if (!admin) {
       return json(res, 401, { detail: "Invalid admin credentials" });
     }
-    return json(res, 200, { token: createToken(body.email), email: body.email });
+    return json(res, 200, { token: createToken(admin.email), email: admin.email });
   }
 
   const admin = verifyToken(req);
