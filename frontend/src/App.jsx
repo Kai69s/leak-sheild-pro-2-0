@@ -26,11 +26,13 @@ import {
 } from "lucide-react";
 import { adminLogin, adminLogout, adminToken, clearAdminAudit, createScan, fetchAdminAudit, getScan, listScans } from "./api";
 
-const defaultInput = `# production deployment leaked into public repo
-api_key="prod_live_ci_token_9f2b7c4a6d8e1f0a2b3c4d5e"
-db_url=postgres://admin:ProdRootPass2026!@prod-db.internal:5432/payments
-password='ProdRootPass2026!'
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.prodtoken.segment`;
+const defaultInput = `# Paste code, configuration, logs, or public URLs here.
+# LeakShield will flag exposed credentials, risky connection strings,
+# public tokens, and other deployment weaknesses when you run a scan.
+
+service_name=public-demo
+environment=review
+scan_target=https://example.com`;
 
 const levels = {
   LOW: "text-cyan-200 border-cyan-300/40 bg-cyan-300/10",
