@@ -1,9 +1,16 @@
 import asyncio
 
+import httpx
 import pytest
 from fastapi import HTTPException
 
-from app.engines.assessment.website import _assert_public_url, _finding, _grade, _header_assessment
+from app.engines.assessment.website import (
+    _assert_public_url,
+    _finding,
+    _grade,
+    _header_assessment,
+    _subdomain_assessment,
+)
 
 
 def test_header_assessment_reports_missing_controls() -> None:
@@ -55,3 +62,19 @@ def test_invalid_ports_are_rejected_as_validation_errors() -> None:
     with pytest.raises(HTTPException) as error:
         asyncio.run(_assert_public_url("https://example.com:99999/"))
     assert error.value.status_code == 400
+
+
+def test_subdomain_resolver_exhaustion_does_not_abort_assessment(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.assessment.website.socket.getaddrinfo",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(OSError(16, "Device or resource busy")),
+    )
+    transport = httpx.MockTransport(lambda _request: httpx.Response(200, json=[]))
+
+    async def run() -> list[dict]:
+        async with httpx.AsyncClient(transport=transport) as client:
+            return await _subdomain_assessment(client, "example.com")
+
+    results = asyncio.run(run())
+    assert results
+    assert all(item["alive"] is False for item in results)

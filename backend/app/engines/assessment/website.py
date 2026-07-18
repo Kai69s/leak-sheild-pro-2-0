@@ -96,7 +96,7 @@ async def _assert_public_url(value: str) -> str:
         raise HTTPException(status_code=400, detail="Private and local network targets are not allowed")
     try:
         addresses = await asyncio.to_thread(socket.getaddrinfo, hostname, None, type=socket.SOCK_STREAM)
-    except socket.gaierror as error:
+    except OSError as error:
         raise HTTPException(status_code=400, detail="The target hostname could not be resolved") from error
     ips = {item[4][0].split("%")[0] for item in addresses}
     if not ips or any(not ipaddress.ip_address(address).is_global for address in ips):
@@ -274,24 +274,27 @@ async def _subdomain_assessment(client: httpx.AsyncClient, hostname: str) -> lis
     except Exception:
         pass
 
+    resolver_slots = asyncio.Semaphore(5)
+
     async def inspect(name: str) -> dict[str, Any]:
-        try:
-            addresses = await asyncio.to_thread(socket.getaddrinfo, name, None, type=socket.SOCK_STREAM)
-            ips = sorted({item[4][0] for item in addresses})
-        except socket.gaierror:
-            return {"hostname": name, "alive": False, "status": None, "ips": [], "technology": None, "ssl": None}
-        status = None
-        server = None
-        tls = False
-        for scheme in ("https", "http"):
+        async with resolver_slots:
             try:
-                response = await client.get(f"{scheme}://{name}/", timeout=2.5)
-                status = response.status_code
-                server = response.headers.get("server")
-                tls = scheme == "https"
-                break
-            except Exception:
-                continue
+                addresses = await asyncio.to_thread(socket.getaddrinfo, name, None, type=socket.SOCK_STREAM)
+                ips = sorted({item[4][0] for item in addresses})
+            except OSError:
+                return {"hostname": name, "alive": False, "status": None, "ips": [], "technology": None, "ssl": None}
+            status = None
+            server = None
+            tls = False
+            for scheme in ("https", "http"):
+                try:
+                    response = await client.get(f"{scheme}://{name}/", timeout=2.5)
+                    status = response.status_code
+                    server = response.headers.get("server")
+                    tls = scheme == "https"
+                    break
+                except Exception:
+                    continue
         return {"hostname": name, "alive": status is not None, "status": status, "ips": ips, "technology": server, "ssl": tls}
 
     selected = sorted(names)[:30]
@@ -301,11 +304,11 @@ async def _subdomain_assessment(client: httpx.AsyncClient, hostname: str) -> lis
 async def _threat_intelligence(client: httpx.AsyncClient, hostname: str) -> dict[str, Any]:
     try:
         ip = (await asyncio.to_thread(socket.getaddrinfo, hostname, None, type=socket.SOCK_STREAM))[0][4][0]
-    except (socket.gaierror, IndexError):
+    except (OSError, IndexError):
         return {}
     try:
         reverse_dns = (await asyncio.to_thread(socket.gethostbyaddr, ip))[0]
-    except (socket.herror, socket.gaierror):
+    except OSError:
         reverse_dns = None
     result: dict[str, Any] = {"ip": ip, "reverse_dns": reverse_dns}
     try:
