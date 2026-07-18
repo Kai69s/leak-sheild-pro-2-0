@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { clearAuditRecords, listAuditRecords, listAuditUsers } = require("./_auditStore");
+const { clearAuditRecords, listAuditRecords, listAuditUsers, storageProvider } = require("./_auditStore");
 const { parseJsonBody, rateLimit, safeCredentialEqual, safeStringEqual, setApiSecurityHeaders } = require("./_security");
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
@@ -8,7 +8,10 @@ const ADMIN_EXTRA_EMAIL = process.env.ADMIN_EXTRA_EMAIL;
 const ADMIN_EXTRA_PASSWORD = process.env.ADMIN_EXTRA_PASSWORD;
 const SESSION_SECRET =
   process.env.ADMIN_SESSION_SECRET ||
-  crypto.createHash("sha256").update(adminCredentials().map(({ email }) => email).join("|") || "leakshield-admin").digest("hex");
+  crypto
+    .createHash("sha256")
+    .update(adminCredentials().map(({ email, password }) => `${email}:${password}`).join("|") || crypto.randomUUID())
+    .digest("hex");
 const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
 
 function appendCredential(credentials, email, password) {
@@ -113,7 +116,7 @@ module.exports = async function handler(req, res) {
       records: await listAuditRecords(),
       users: await listAuditUsers(),
       storage: {
-        provider: process.env.BLOB_READ_WRITE_TOKEN || process.env.VERCEL_OIDC_TOKEN ? "vercel_blob_private" : "memory_fallback",
+        provider: storageProvider(),
         grouping: "one_user_box_per_browser_session"
       }
     });

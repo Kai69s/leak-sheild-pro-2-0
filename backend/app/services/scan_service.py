@@ -30,11 +30,11 @@ class ScanService:
         cache_key = f"scan:{content_hash}:{metadata_hash}:{payload.source_name}"
         cached = await cache_client.get_json(cache_key)
         if cached:
-            return ScanResponse(**cached, cache_hit=True)
+            cached["cache_hit"] = True
+            return ScanResponse(**cached)
 
         detections = self.detector.scan(payload.content)
         finding_models: list[Finding] = []
-        finding_responses: list[FindingResponse] = []
         risk_results = []
 
         scan = Scan(
@@ -64,7 +64,6 @@ class ScanService:
                 explanation=explanation,
             )
             finding_models.append(model)
-            finding_responses.append(self._finding_response(model, explanation))
 
         scan_risk = self.risk_engine.score_scan(risk_results)
         scan.overall_score = scan_risk.score

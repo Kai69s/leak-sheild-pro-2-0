@@ -54,6 +54,7 @@ services:
     container_name: leakshield-frontend
     environment:
       VITE_API_BASE_URL: http://localhost:8000
+      VITE_SERVERLESS_FEATURES: "false"
     ports:
       - "5173:5173"
     depends_on:

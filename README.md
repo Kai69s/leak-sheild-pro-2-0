@@ -25,6 +25,10 @@ User
 - Cache: Redis 7
 - Deployment: Docker Compose
 
+The Vercel deployment uses the serverless API in `api/` and supports text, project-folder, website, and admin audit workflows. The Docker Compose deployment uses FastAPI and intentionally exposes text scanning only.
+
+The admin API requires `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Setting a separate high-entropy `ADMIN_SESSION_SECRET` is recommended; otherwise session signing is derived from the configured admin credentials. Private audit persistence additionally uses Vercel Blob when its storage variables are available.
+
 ## Run With Docker
 
 ```bash
@@ -36,6 +40,8 @@ Open:
 
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:8000/docs
+
+Folder, website, and admin modes are hidden in Docker because they are implemented by the Vercel serverless API.
 
 ## Local Backend
 

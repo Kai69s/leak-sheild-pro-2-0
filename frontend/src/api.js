@@ -14,7 +14,13 @@ async function request(path, options = {}) {
     ...options
   });
   if (!response.ok) {
-    const message = await response.text();
+    const body = await response.text();
+    let message = body;
+    try {
+      message = JSON.parse(body).detail || body;
+    } catch {
+      // Non-JSON errors are already suitable for display.
+    }
     throw new Error(message || `Request failed with status ${response.status}`);
   }
   return response.json();
@@ -102,10 +108,6 @@ function readDetails() {
 
 function saveScan(scan) {
   if (typeof localStorage === "undefined" || !scan?.id) return;
-  const details = readDetails();
-  details[scan.id] = scan;
-  localStorage.setItem(DETAIL_KEY, JSON.stringify(details));
-
   const historyItem = {
     id: scan.id,
     source_name: scan.source_name,
@@ -114,6 +116,13 @@ function saveScan(scan) {
     finding_count: scan.finding_count,
     created_at: scan.created_at
   };
-  const history = [historyItem, ...readHistory().filter((item) => item.id !== scan.id)].slice(0, 50);
-  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  try {
+    const details = readDetails();
+    details[scan.id] = scan;
+    localStorage.setItem(DETAIL_KEY, JSON.stringify(details));
+    const history = [historyItem, ...readHistory().filter((item) => item.id !== scan.id)].slice(0, 50);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
+  } catch {
+    // A successful scan should remain usable even when browser storage is unavailable or full.
+  }
 }

@@ -54,12 +54,21 @@ const orbitSatelliteNodes = orbitSatellites.map((item) => (
   <span key={item} className="satellite-dot" style={{ "--i": item }} />
 ));
 const SESSION_KEY = "leakshield.sessionId";
+const SERVERLESS_FEATURES_ENABLED =
+  import.meta.env.VITE_SERVERLESS_FEATURES === "true" ||
+  (import.meta.env.VITE_SERVERLESS_FEATURES !== "false" &&
+    typeof window !== "undefined" &&
+    !["localhost", "127.0.0.1"].includes(window.location.hostname));
 
 function ensureSessionId() {
-  const existing = localStorage.getItem(SESSION_KEY);
-  if (existing) return existing;
   const id = crypto.randomUUID();
-  localStorage.setItem(SESSION_KEY, id);
+  try {
+    const existing = localStorage.getItem(SESSION_KEY);
+    if (existing) return existing;
+    localStorage.setItem(SESSION_KEY, id);
+  } catch {
+    // A temporary session still allows scanning when browser storage is disabled.
+  }
   return id;
 }
 
@@ -211,7 +220,7 @@ export default function App() {
     );
   }, [result, deferredFindingFilter]);
 
-  if (isAdminPath) return <AdminDashboard />;
+  if (isAdminPath) return SERVERLESS_FEATURES_ENABLED ? <AdminDashboard /> : <UnavailableAdmin />;
 
 
   return (
@@ -227,6 +236,7 @@ export default function App() {
             handleFolderUpload={handleFolderUpload}
             projectFiles={projectFiles}
             scanMode={scanMode}
+            showExtendedModes={SERVERLESS_FEATURES_ENABLED}
             setContent={setContent}
             setSourceName={setSourceName}
             setWebsiteUrl={setWebsiteUrl}
@@ -269,7 +279,7 @@ function MissionHeader({ loading, result }) {
         </div>
       </div>
       <div className="header-actions">
-        <AdminShortcut />
+        {SERVERLESS_FEATURES_ENABLED && <AdminShortcut />}
         <div className="hidden items-center gap-3 lg:flex">
           <MemoTelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
           <MemoTelemetryPill icon={ShieldAlert} label="Risk" value={result?.overall_level ?? "STANDBY"} tone="red" />
@@ -287,6 +297,22 @@ function AdminShortcut({ floating = false }) {
       <LockKeyhole className="h-4 w-4" />
       Admin Login
     </a>
+  );
+}
+
+function UnavailableAdmin() {
+  return (
+    <main className="mission-shell min-h-screen overflow-hidden text-slate-100">
+      <div className="scanline" />
+      <div className="admin-shell">
+        <section className="admin-login mission-panel">
+          <div className="classification"><LockKeyhole className="h-4 w-4" /> ADMIN DASHBOARD</div>
+          <h1>Not available in this deployment</h1>
+          <p className="empty-state">The Docker/FastAPI deployment supports text scanning. Admin audit tools run on the Vercel deployment.</p>
+          <a className="primary-command" href="/">Return to scanner</a>
+        </section>
+      </div>
+    </main>
   );
 }
 
@@ -352,10 +378,15 @@ function AdminDashboard() {
   }
 
   async function clearRecords() {
-    await clearAdminAudit(token);
-    setRecords([]);
-    setUsers([]);
-    setSelectedUserId("");
+    setError("");
+    try {
+      await clearAdminAudit(token);
+      setRecords([]);
+      setUsers([]);
+      setSelectedUserId("");
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   function logout() {
@@ -450,7 +481,7 @@ function AdminDashboard() {
                   <span className={`risk-badge ${levels[user.latest_risk] || levels.LOW}`}>
                     {user.latest_risk || "LOW"}
                   </span>
-                  <small>{user.scan_count} scans | {user.finding_count} findings | IP {user.latest_ip}</small>
+                  <small>{user.scan_count} scans | {user.finding_count} findings | redacted audit</small>
                   <small>{user.session_id}</small>
                   <small>Latest: {new Date(user.latest_seen_at).toLocaleString()}</small>
                 </button>
@@ -471,7 +502,7 @@ function AuditUserBox({ user }) {
     return (
       <section className="mission-panel">
         <MemoPanelHeader icon={KeyRound} title="User Data Box" code="ADMIN-02" />
-        <p className="empty-state">Select a user box to review submitted input, session data, location status, network metadata, and scan results.</p>
+        <p className="empty-state">Select a user box to review redacted scan summaries and session activity.</p>
       </section>
     );
   }
@@ -485,7 +516,7 @@ function AuditUserBox({ user }) {
         <Metric label="User" value={user.id} />
         <Metric label="Scans" value={user.scan_count || 0} />
         <Metric label="Findings" value={user.finding_count || 0} />
-        <Metric label="Latest IP" value={user.latest_ip || "unknown"} />
+        <Metric label="Session" value={user.session_id || "anonymous"} />
       </div>
 
       <h3>User Row Summary</h3>
@@ -498,7 +529,6 @@ function AuditUserBox({ user }) {
         finding_count: user.finding_count,
         critical_count: user.critical_count,
         latest_risk: user.latest_risk,
-        latest_ip: user.latest_ip,
         latest_request_context: latest.request_context,
       }, null, 2)}</pre>
 
@@ -596,6 +626,7 @@ function CommandPanel({
   setSourceName,
   setWebsiteUrl,
   showFolderMode,
+  showExtendedModes,
   showTextMode,
   showWebsiteMode,
   sourceName,
@@ -606,8 +637,8 @@ function CommandPanel({
       <MemoPanelHeader icon={Cpu} title="Threat Acquisition" code="INPUT-01" />
       <div className="mode-rail">
         <MemoModeButton active={scanMode === "text"} onClick={showTextMode} icon={TerminalSquare} label="Text" />
-        <MemoModeButton active={scanMode === "project-folder"} onClick={showFolderMode} icon={FolderOpen} label="Folder" />
-        <MemoModeButton active={scanMode === "website"} onClick={showWebsiteMode} icon={Globe2} label="Website" />
+        {showExtendedModes && <MemoModeButton active={scanMode === "project-folder"} onClick={showFolderMode} icon={FolderOpen} label="Folder" />}
+        {showExtendedModes && <MemoModeButton active={scanMode === "website"} onClick={showWebsiteMode} icon={Globe2} label="Website" />}
       </div>
 
       <div className="target-row">

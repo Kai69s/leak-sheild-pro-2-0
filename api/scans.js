@@ -44,76 +44,6 @@ const commonPublicPaths = [
   "/_next/static/chunks/webpack.js"
 ];
 
-function headerValue(req, name) {
-  const value = req.headers[name.toLowerCase()];
-  return Array.isArray(value) ? value[0] : value || "";
-}
-
-function clientIp(req) {
-  return (
-    headerValue(req, "x-forwarded-for").split(",")[0].trim() ||
-    headerValue(req, "x-real-ip") ||
-    headerValue(req, "x-vercel-forwarded-for") ||
-    "unknown"
-  );
-}
-
-function requestContext(req) {
-  return {
-    ip_address: clientIp(req),
-    user_agent: headerValue(req, "user-agent"),
-    country: headerValue(req, "x-vercel-ip-country") || "unknown",
-    region: headerValue(req, "x-vercel-ip-country-region") || "unknown",
-    city: headerValue(req, "x-vercel-ip-city") || "unknown",
-    timezone: headerValue(req, "x-vercel-ip-timezone") || "unknown",
-    mac_address: "not_available_in_browser",
-    mac_address_note: "Standard web browsers do not expose client MAC addresses to websites.",
-    vpn_status: "unknown",
-    vpn_blocked: false
-  };
-}
-
-function submittedInput(payload, mode) {
-  if (mode === "website") {
-    return {
-      mode,
-      website_url: payload.website_url || payload.url || "",
-      source_name: payload.source_name || payload.website_url || payload.url || "website-scan"
-    };
-  }
-  if (mode === "project-folder") {
-    return {
-      mode,
-      source_name: payload.source_name || "uploaded-project",
-      files: Array.isArray(payload.files)
-        ? payload.files.map((file) => ({
-            path: file.path,
-            size: file.size,
-            content: typeof file.content === "string" ? file.content.slice(0, MAX_FILE_BYTES) : ""
-          }))
-        : []
-    };
-  }
-  return {
-    mode,
-    source_name: payload.source_name || "manual-input",
-    content: payload.content || ""
-  };
-}
-
-async function auditScan(req, payload, mode, result) {
-  const metadata = payload.metadata || {};
-  await addAuditRecord({
-    id: crypto.randomUUID(),
-    created_at: new Date().toISOString(),
-    session_id: metadata.client_session_id || "unknown",
-    consent: metadata.consent || {},
-    request_context: requestContext(req),
-    submitted_input: submittedInput(payload, mode),
-    result_shown_to_user: result
-  });
-}
-
 function httpError(message, statusCode) {
   const error = new Error(message);
   error.statusCode = statusCode;
@@ -127,6 +57,12 @@ function assertStringBytes(value, maxBytes, label) {
 }
 
 function validatePayload(payload, mode) {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw httpError("Request body must be a JSON object.", 400);
+  }
+  if (!["text", "project-folder", "website"].includes(mode)) {
+    throw httpError("mode must be text, project-folder, or website.", 400);
+  }
   assertStringBytes(payload.source_name || "", 512, "source_name");
   if (mode === "website") {
     assertStringBytes(payload.website_url || payload.url || "", MAX_URL_LENGTH, "website_url");
@@ -134,8 +70,12 @@ function validatePayload(payload, mode) {
   }
   if (mode === "project-folder") {
     const files = Array.isArray(payload.files) ? payload.files : [];
+    if (!files.length) throw httpError("At least one project file is required.", 400);
     let totalBytes = 0;
     for (const file of files.slice(0, MAX_FOLDER_FILES)) {
+      if (!file || typeof file.path !== "string" || typeof file.content !== "string") {
+        throw httpError("Each project file requires a path and text content.", 400);
+      }
       assertStringBytes(file?.path || "", 1024, "file path");
       totalBytes += Buffer.byteLength(String(file?.content || ""), "utf8");
       if (totalBytes > MAX_PROJECT_TOTAL_BYTES) throw httpError("Uploaded project content is too large.", 413);
@@ -143,6 +83,61 @@ function validatePayload(payload, mode) {
     return;
   }
   assertStringBytes(payload.content || "", MAX_TEXT_BYTES, "content");
+}
+
+function safeAuditSource(value, mode) {
+  if (mode !== "website") return String(value || "scan").slice(0, 512);
+  try {
+    const parsed = new URL(value);
+    parsed.username = "";
+    parsed.password = "";
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    return "website-scan";
+  }
+}
+
+function redactedAuditResult(result) {
+  return {
+    id: result.id,
+    source_name: safeAuditSource(result.source_name, result.mode),
+    mode: result.mode,
+    overall_score: result.overall_score,
+    overall_level: result.overall_level,
+    finding_count: result.finding_count,
+    public_exposure_count: result.public_exposure_count,
+    scanned_files: result.scanned_files,
+    recommendation: result.recommendation,
+    findings: result.findings.map((finding) => ({
+      rule_id: finding.rule_id,
+      secret_type: finding.secret_type,
+      severity: finding.severity,
+      risk_score: finding.risk_score,
+      risk_level: finding.risk_level,
+      file_path: finding.file_path,
+      explanation: finding.explanation
+    }))
+  };
+}
+
+async function auditScan(payload, mode, result) {
+  const metadata = payload.metadata || {};
+  await addAuditRecord({
+    id: crypto.randomUUID(),
+    created_at: new Date().toISOString(),
+    session_id: metadata.client_session_id || "anonymous",
+    consent: { storage: "redacted_scan_summary" },
+    request_context: { network_data: "not_collected" },
+    submitted_input: {
+      mode,
+      source_name: safeAuditSource(payload.source_name || result.source_name, mode),
+      website_url: mode === "website" ? safeAuditSource(result.source_name, mode) : undefined,
+      file_count: mode === "project-folder" && Array.isArray(payload.files) ? payload.files.length : undefined
+    },
+    result_shown_to_user: redactedAuditResult(result)
+  });
 }
 
 const rules = [
@@ -755,17 +750,17 @@ module.exports = async function handler(req, res) {
     validatePayload(payload, mode);
     if (mode === "website") {
       const result = await scanWebsite(payload);
-      await auditScan(req, payload, mode, result);
+      await auditScan(payload, mode, result);
       return res.status(201).json(result);
     }
     if (mode === "project-folder") {
       const result = scanProject(payload);
-      await auditScan(req, payload, mode, result);
+      await auditScan(payload, mode, result);
       return res.status(201).json(result);
     }
     if (!payload.content) return res.status(400).json({ detail: "content is required" });
     const result = scanText(payload);
-    await auditScan(req, payload, mode, result);
+    await auditScan(payload, mode, result);
     return res.status(201).json(result);
   } catch (error) {
     return res.status(error.statusCode || 500).json({ detail: error.message || "Scan failed" });
