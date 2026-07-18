@@ -12,8 +12,11 @@ class CacheClient:
         self._redis: Redis | None = None
 
     async def connect(self) -> None:
-        self._redis = Redis.from_url(self._settings.redis_url, decode_responses=True)
-        await self._redis.ping()
+        try:
+            self._redis = Redis.from_url(self._settings.redis_url, decode_responses=True)
+            await self._redis.ping()
+        except Exception:
+            self._redis = None
 
     async def close(self) -> None:
         if self._redis:
