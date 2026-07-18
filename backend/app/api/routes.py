@@ -3,12 +3,14 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.admin import router as admin_router
 from app.database import get_session
 from app.models import Scan
 from app.schemas import ScanHistoryItem, ScanRequest, ScanResponse
 from app.services.scan_service import ScanService
 
 router = APIRouter()
+router.include_router(admin_router)
 
 
 @router.post("/scans", response_model=ScanResponse, status_code=201)

@@ -60,12 +60,22 @@ export function adminLogin(email, password) {
   return request("/api/admin", {
     method: "POST",
     body: JSON.stringify({ email, password })
+  }).then((session) => {
+    try {
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, session.token);
+    } catch {
+      // The in-memory React state still keeps this login usable.
+    }
+    return session;
   });
 }
 
 export function adminToken() {
-  adminLogout();
-  return "";
+  try {
+    return sessionStorage.getItem(ADMIN_TOKEN_KEY) || "";
+  } catch {
+    return "";
+  }
 }
 
 export function adminLogout() {

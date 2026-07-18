@@ -56,6 +56,13 @@
       }
     },
     {
+      "source": "/admin",
+      "destination": {
+        "service": "frontend",
+        "path": "/"
+      }
+    },
+    {
       "source": "/",
       "destination": {
         "service": "frontend"
