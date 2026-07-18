@@ -1,5 +1,6 @@
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from tempfile import gettempdir
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
@@ -13,10 +14,8 @@ class Base(DeclarativeBase):
 
 settings = get_settings()
 database_url = settings.database_url
-if database_url.startswith("postgresql+asyncpg://localhost") or database_url.startswith(
-    "postgresql+asyncpg://127.0.0.1"
-):
-    fallback_path = Path("/tmp/leakshield.db")
+if "@localhost:" in database_url or "@127.0.0.1:" in database_url:
+    fallback_path = Path(gettempdir()) / "leakshield.db"
     database_url = f"sqlite+aiosqlite:///{fallback_path}"
 
 engine_kwargs = {"pool_pre_ping": True}
@@ -30,7 +29,8 @@ AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=As
 
 
 def _fallback_sqlite_engine() -> tuple[object, async_sessionmaker[AsyncSession]]:
-    fallback_url = "sqlite+aiosqlite:////tmp/leakshield.db"
+    fallback_path = Path(gettempdir()) / "leakshield.db"
+    fallback_url = f"sqlite+aiosqlite:///{fallback_path.as_posix()}"
     fallback_engine = create_async_engine(fallback_url, connect_args={"check_same_thread": False})
     fallback_session = async_sessionmaker(fallback_engine, expire_on_commit=False, class_=AsyncSession)
     return fallback_engine, fallback_session

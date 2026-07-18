@@ -1,4 +1,4 @@
-import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   Link2,
   Loader2,
   LockKeyhole,
+  Moon,
   RefreshCw,
   ScanLine,
   Search,
@@ -22,9 +23,13 @@ import {
   ShieldCheck,
   TerminalSquare,
   UploadCloud,
+  Sun,
   Zap
 } from "lucide-react";
 import { adminLogin, adminLogout, adminToken, clearAdminAudit, createScan, fetchAdminAudit, getScan, listScans } from "./api";
+
+const AssessmentDashboard = lazy(() => import("./components/AssessmentDashboard"));
+const KnowledgeBase = lazy(() => import("./components/KnowledgeBase"));
 
 const defaultInput = `# Paste code, configuration, logs, or public URLs here.
 # LeakShield will flag exposed credentials, risky connection strings,
@@ -97,6 +102,13 @@ export default function App() {
   const [findingFilter, setFindingFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("leakshield.theme") || "dark";
+    } catch {
+      return "dark";
+    }
+  });
   const [clientSessionId] = useState(ensureSessionId);
   const deferredQuery = useDeferredValue(query);
   const deferredRiskFilter = useDeferredValue(riskFilter);
@@ -118,6 +130,15 @@ export default function App() {
   useEffect(() => {
     refreshHistory().catch(() => {});
   }, [refreshHistory]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    try {
+      localStorage.setItem("leakshield.theme", theme);
+    } catch {
+      // Theme remains active for the current page when storage is unavailable.
+    }
+  }, [theme]);
 
 
   const auditMetadata = useCallback(
@@ -229,8 +250,9 @@ export default function App() {
     <main className="mission-shell min-h-screen overflow-hidden text-slate-100" onKeyDown={startScanFromInput}>
       <div className="scanline" />
       <div className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-10">
-        <MemoMissionHeader loading={loading} result={result} />
+        <MemoMissionHeader loading={loading} result={result} theme={theme} onToggleTheme={() => setTheme((value) => value === "dark" ? "light" : "dark")} />
         <MemoHeroSection loading={loading} result={result} onScan={scan} onRefreshHistory={refreshHistory} />
+        <LiveScanProgress visible={loading && scanMode === "website"} />
         <section className="ops-grid">
           <MemoCommandPanel
             content={content}
@@ -263,12 +285,16 @@ export default function App() {
           result={result}
           setFindingFilter={setFindingFilter}
         />
+        <Suspense fallback={<div className="mission-panel module-loading"><Loader2 className="h-5 w-5 animate-spin" /> Loading assessment modules...</div>}>
+          <AssessmentDashboard result={result} />
+          <KnowledgeBase />
+        </Suspense>
       </div>
     </main>
   );
 }
 
-function MissionHeader({ loading, result }) {
+function MissionHeader({ loading, result, theme, onToggleTheme }) {
   return (
     <header className="mission-header">
       <div className="flex items-center gap-3">
@@ -281,6 +307,9 @@ function MissionHeader({ loading, result }) {
         </div>
       </div>
       <div className="header-actions">
+        <button type="button" className="theme-toggle" onClick={onToggleTheme} title={`Use ${theme === "dark" ? "light" : "dark"} mode`} aria-label={`Use ${theme === "dark" ? "light" : "dark"} mode`}>
+          {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+        </button>
         {SERVERLESS_FEATURES_ENABLED && <AdminShortcut />}
         <div className="hidden items-center gap-3 lg:flex">
           <MemoTelemetryPill icon={Activity} label="Engine" value={loading ? "SCANNING" : "ARMED"} tone="green" />
@@ -292,6 +321,17 @@ function MissionHeader({ loading, result }) {
 }
 
 const MemoMissionHeader = memo(MissionHeader);
+
+function LiveScanProgress({ visible }) {
+  if (!visible) return null;
+  const phases = ["DNS", "SSL", "Headers", "Subdomains", "Crawling", "Technologies", "Analysis", "Advisor", "Report"];
+  return (
+    <section className="live-progress mission-panel" aria-live="polite">
+      <div><Loader2 className="h-5 w-5 animate-spin" /><span><strong>Assessment in progress</strong><small>Running bounded passive checks against public resources only.</small></span></div>
+      <ol>{phases.map((phase, index) => <li key={phase} style={{ "--progress-index": index }}><span />{phase}</li>)}</ol>
+    </section>
+  );
+}
 
 function AdminShortcut({ floating = false }) {
   return (
@@ -869,7 +909,7 @@ function RecommendationCard({ recommendation }) {
       <p>{recommendation.summary}</p>
       {recommendation.exposed_addresses?.length > 0 && (
         <div className="address-deck">
-          {recommendation.exposed_addresses.map((address) => (
+          {[...new Set(recommendation.exposed_addresses)].map((address) => (
             <code key={address}>{address}</code>
           ))}
         </div>
@@ -890,6 +930,8 @@ const MemoRecommendationCard = memo(RecommendationCard);
 
 function FindingCard({ finding }) {
   const address = finding.file_path || finding.source_address || finding.source_name;
+  const learning = finding.explanation.learning;
+  const fixes = finding.explanation.developer_fixes;
   return (
     <article className="finding-card">
       <div className="flex items-start justify-between gap-3">
@@ -926,8 +968,51 @@ function FindingCard({ finding }) {
         <p>{finding.explanation.attacker_impact}</p>
       </div>
       <p className="mt-3 text-xs leading-5 text-slate-500">{finding.explanation.remediation}</p>
+      {(finding.owasp || finding.cwe || finding.capec) && (
+        <div className="mapping-row">
+          {finding.owasp && <span>{finding.owasp}</span>}
+          {finding.cwe && <span>{finding.cwe}</span>}
+          {finding.capec && <span>{finding.capec}</span>}
+        </div>
+      )}
+      {learning && (
+        <details className="learning-mode">
+          <summary><ShieldCheck className="h-4 w-4" /> Learning Mode: understand and fix this finding</summary>
+          <div className="learning-grid">
+            <LearningBlock title="What is it?" value={learning.definition} />
+            <LearningBlock title="Why dangerous?" value={learning.why_dangerous} />
+            <LearningBlock title="How attackers use it" value={learning.attacker_method} />
+            <LearningBlock title="Generalized example" value={learning.real_world_example} />
+            <LearningBlock title="Business impact" value={learning.business_impact} />
+          </div>
+          <LearningList title="Common mistakes" items={learning.common_mistakes} />
+          <LearningList title="Step-by-step remediation" items={learning.remediation_steps} ordered />
+          <LearningList title="Prevention checklist" items={learning.prevention_checklist} />
+          {fixes && (
+            <div className="fix-assistant">
+              <h4>Developer Fix Assistant</h4>
+              <p>{fixes.generic}</p>
+              <div className="snippet-grid">
+                {Object.entries(fixes.snippets || {}).map(([framework, snippet]) => <div key={framework}><strong>{framework}</strong><pre>{snippet}</pre></div>)}
+              </div>
+            </div>
+          )}
+          <div className="official-references">
+            {(learning.references || []).map((reference) => <a key={reference.url} href={reference.url} target="_blank" rel="noreferrer">{reference.title}</a>)}
+          </div>
+        </details>
+      )}
     </article>
   );
+}
+
+function LearningBlock({ title, value }) {
+  return <div><strong>{title}</strong><p>{value}</p></div>;
+}
+
+function LearningList({ title, items = [], ordered = false }) {
+  const List = ordered ? "ol" : "ul";
+  return <div className="learning-list"><strong>{title}</strong><List>{items.map((item) => <li key={item}>{item}</li>)}</List></div>;
 }
 
 const MemoFindingCard = memo(FindingCard);

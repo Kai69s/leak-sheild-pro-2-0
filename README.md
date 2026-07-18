@@ -1,6 +1,6 @@
 # LeakShield Pro
 
-LeakShield Pro is a DevSecOps secret detection system for scanning pasted code, configuration, CI logs, and repository snippets for leaked credentials. It combines modular regex rules, context-aware threat scoring, rule-based explanations, PostgreSQL persistence, Redis caching, and a modern React dashboard.
+LeakShield Pro is a free and open-source cybersecurity assessment platform for public websites, project folders, pasted code, configuration, and CI logs. It combines bounded passive crawling, attack-surface discovery, DNS/TLS/header intelligence, technology and JavaScript analysis, redacted secret detection, context-aware risk scoring, educational guidance, PostgreSQL persistence, Redis caching, and a modern React dashboard.
 
 ## Architecture
 
@@ -25,7 +25,18 @@ User
 - Cache: Redis 7
 - Deployment: Docker Compose
 
-The Vercel deployment uses the serverless API in `api/` and supports text, project-folder, website, and admin audit workflows. The Docker Compose deployment uses FastAPI and intentionally exposes text scanning only.
+Vercel and Docker now share the same FastAPI API for text, project-folder, website, history, comparison, and admin audit workflows. The old `api/` implementation remains for backward compatibility but is not part of the Vercel Services build.
+
+## Free Assessment Modules
+
+- Public same-origin crawl with robots.txt, sitemap.xml, common security paths, redirects, and JavaScript-discovered links
+- Certificate Transparency and DNS-based subdomain enumeration with alive/status/TLS/server evidence
+- HTTP security headers, certificate/TLS, DNS/SPF/DMARC/DKIM/CAA/DNSSEC, and RDAP network intelligence
+- Technology fingerprinting, public Git/config/backup checks, source-map detection, and redacted public secret patterns
+- Security grade, risk score, OWASP/CWE/CAPEC mapping, deterministic Security Advisor, remediation roadmap, scan comparison, and print-to-PDF reports
+- Expandable Learning Mode, framework-specific defensive snippets, and a searchable official-reference knowledge base
+
+Website assessment is defensive and low impact: only public HTTP(S) targets are accepted, private/reserved IP ranges are blocked, redirects are revalidated, response sizes and crawl breadth are bounded, and findings are labelled as potential exposures requiring verification. No paid API or model is required.
 
 The admin API requires `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Setting a separate high-entropy `ADMIN_SESSION_SECRET` is recommended; otherwise session signing is derived from the configured admin credentials. Private audit persistence additionally uses Vercel Blob when its storage variables are available.
 

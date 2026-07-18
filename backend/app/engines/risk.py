@@ -40,7 +40,7 @@ class RiskEngine:
         if any(term in context_blob for term in LOW_RISK_CONTEXT):
             score -= 10
             adjustments.append("Non-production context reduced the final risk.")
-        if finding.rule.secret_type in {"Private Key", "Database URL", "AWS Secret Access Key"}:
+        if finding.rule.secret_type in {"Private Key", "Database URL", "AWS Secret Access Key", "Password"}:
             score += 8
             adjustments.append("Secret type has direct authentication impact.")
         if len(finding.secret_value) > 80:

@@ -1,6 +1,8 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
-  (typeof window !== "undefined" && window.location.hostname === "localhost" ? "http://localhost:8000" : "");
+  (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://127.0.0.1:8000"
+    : "");
 const HISTORY_KEY = "leakshield.scanHistory";
 const DETAIL_KEY = "leakshield.scanDetails";
 const ADMIN_TOKEN_KEY = "leakshield.adminToken";

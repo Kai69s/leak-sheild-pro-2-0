@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -7,6 +7,7 @@ from app.api.admin import router as admin_router
 from app.database import get_session
 from app.models import Scan
 from app.schemas import ScanHistoryItem, ScanRequest, ScanResponse
+from app.security import enforce_scan_rate_limit
 from app.services.scan_service import ScanService
 
 router = APIRouter()
@@ -14,7 +15,12 @@ router.include_router(admin_router)
 
 
 @router.post("/scans", response_model=ScanResponse, status_code=201)
-async def create_scan(payload: ScanRequest, session: AsyncSession = Depends(get_session)) -> ScanResponse:
+async def create_scan(
+    payload: ScanRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+) -> ScanResponse:
+    enforce_scan_rate_limit(request)
     return await ScanService(session).scan(payload)
 
 
