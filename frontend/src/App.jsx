@@ -82,7 +82,9 @@ function riskColor(level) {
 }
 
 export default function App() {
-  const isAdminPath = typeof window !== "undefined" && window.location.pathname === "/admin";
+  const isAdminPath =
+    typeof window !== "undefined" &&
+    (window.location.pathname === "/admin" || new URLSearchParams(window.location.search).get("admin") === "true");
   const [content, setContent] = useState(defaultInput);
   const [sourceName, setSourceName] = useState("deployment.env");
   const [scanMode, setScanMode] = useState("text");
