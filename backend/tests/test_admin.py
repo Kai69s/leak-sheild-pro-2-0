@@ -1,8 +1,6 @@
-import asyncio
-
 from fastapi.testclient import TestClient
 
-from app.api.admin import AdminLogin, _authenticated_admin, _group_users, login
+from app.api.admin import _authenticated_admin, _group_users
 from app.main import app
 
 
@@ -11,9 +9,13 @@ def test_admin_login_creates_a_verifiable_session(monkeypatch) -> None:
     monkeypatch.setenv("ADMIN_PASSWORD", "correct-password")
     monkeypatch.setenv("ADMIN_SESSION_SECRET", "test-session-secret")
 
-    session = asyncio.run(login(AdminLogin(email="admin@example.test", password="correct-password")))
+    response = TestClient(app).post(
+        "/api/admin",
+        json={"email": "admin@example.test", "password": "correct-password"},
+    )
 
-    assert _authenticated_admin(f"Bearer {session['token']}") == "admin@example.test"
+    assert response.status_code == 200
+    assert _authenticated_admin(f"Bearer {response.json()['token']}") == "admin@example.test"
 
 
 def test_admin_login_is_mounted_at_api_route(monkeypatch) -> None:

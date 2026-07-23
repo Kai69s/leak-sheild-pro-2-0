@@ -1,12 +1,20 @@
 from datetime import datetime
+import json
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+MAX_FILE_BYTES = 300_000
+MAX_PROJECT_BYTES = 1_200_000
+MAX_TEXT_BYTES = 420_000
+MAX_METADATA_BYTES = 16_384
 
 
 class ProjectFile(BaseModel):
     path: str = Field(min_length=1, max_length=1024)
-    content: str
+    content: str = Field(max_length=MAX_FILE_BYTES)
     size: int | None = Field(default=None, ge=0)
 
 
@@ -19,6 +27,14 @@ class ScanRequest(BaseModel):
     files: list[ProjectFile] = Field(default_factory=list, max_length=140)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
+    @field_validator("source_name")
+    @classmethod
+    def safe_source_name(cls, value: str) -> str:
+        cleaned = re.sub(r"[\x00-\x1f\x7f]", "", value).strip()
+        if not cleaned:
+            return "manual-input"
+        return cleaned
+
     @model_validator(mode="after")
     def validate_scan_input(self) -> "ScanRequest":
         if self.mode == "website" and not (self.website_url or self.url):
@@ -27,6 +43,15 @@ class ScanRequest(BaseModel):
             raise ValueError("At least one project file is required")
         if self.mode == "text" and not self.content:
             raise ValueError("content is required for text scans")
+        if self.mode == "text" and len(self.content.encode("utf-8")) > MAX_TEXT_BYTES:
+            raise ValueError("Text scan exceeds the allowed size")
+        if self.mode == "project-folder":
+            total_bytes = sum(len(file.content.encode("utf-8")) for file in self.files)
+            if total_bytes > MAX_PROJECT_BYTES:
+                raise ValueError("Project scan exceeds the allowed total size")
+        self.metadata.pop("client_session_id", None)
+        if len(json.dumps(self.metadata, separators=(",", ":"), ensure_ascii=True).encode()) > MAX_METADATA_BYTES:
+            raise ValueError("Scan metadata exceeds the allowed size")
         return self
 
 

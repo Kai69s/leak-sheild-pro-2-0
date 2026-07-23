@@ -30,6 +30,7 @@ export default function AssessmentDashboard({ result }) {
   if (!result?.assessment) return null;
 
   const { assessment } = result;
+  const selectedUrl = safeHttpUrl(selectedNode?.url);
   const endpoints = (assessment.endpoints || []).filter((item) =>
     `${item.url} ${item.type} ${item.status}`.toLowerCase().includes(deferredQuery)
   );
@@ -92,7 +93,7 @@ export default function AssessmentDashboard({ result }) {
           <section className="mission-panel surface-map">
             <SectionTitle icon={Radar} code="MAP-03" title="Interactive Attack Surface" />
             <div className="surface-root"><Globe2 className="h-5 w-5" />{result.source_name}</div>
-            {selectedNode && <div className="surface-selection"><strong>{selectedNode.id}</strong><span>{selectedNode.type} · HTTP {selectedNode.status} · {selectedNode.source}</span><a href={selectedNode.url} target="_blank" rel="noreferrer">Open endpoint <ExternalLink className="h-3.5 w-3.5" /></a></div>}
+            {selectedNode && <div className="surface-selection"><strong>{selectedNode.id}</strong><span>{selectedNode.type} · HTTP {selectedNode.status} · {selectedNode.source}</span>{selectedUrl && <a href={selectedUrl} target="_blank" rel="noreferrer">Open endpoint <ExternalLink className="h-3.5 w-3.5" /></a>}</div>}
             <div className="surface-tree">
               {(assessment.attack_surface || []).slice(0, 40).map((node) => (
                 <button key={node.url} onClick={() => setSelectedNode(node)} className={selectedNode?.url === node.url ? "surface-node-active" : ""} title={`${node.type} returned ${node.status}`}>
@@ -109,7 +110,7 @@ export default function AssessmentDashboard({ result }) {
             </div>
             <div className="endpoint-table" role="table">
               {endpoints.map((endpoint) => (
-                <a href={endpoint.url} target="_blank" rel="noreferrer" className="endpoint-row" key={`${endpoint.url}-${endpoint.type}`}>
+                <a href={safeHttpUrl(endpoint.url) || "#"} target="_blank" rel="noreferrer" className="endpoint-row" key={`${endpoint.url}-${endpoint.type}`}>
                   <span className={`status-code status-${statusTone(endpoint.status)}`}>{endpoint.status}</span>
                   <span><strong>{endpoint.path}</strong><small>{endpoint.type} · {endpoint.source}</small></span>
                   <ExternalLink className="h-4 w-4" />
@@ -235,4 +236,13 @@ function statusTone(status) {
   if (status >= 200 && status < 300) return "green";
   if (status >= 300 && status < 400) return "amber";
   return "red";
+}
+
+function safeHttpUrl(value) {
+  try {
+    const parsed = new URL(value);
+    return ["http:", "https:"].includes(parsed.protocol) ? parsed.toString() : "";
+  } catch {
+    return "";
+  }
 }

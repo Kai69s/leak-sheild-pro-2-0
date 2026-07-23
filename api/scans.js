@@ -1,8 +1,9 @@
 const crypto = require("crypto");
 const dns = require("dns").promises;
 const net = require("net");
+const { Agent, fetch } = require("undici");
 const { addAuditRecord } = require("./_auditStore");
-const { parseJsonBody, rateLimit, setApiSecurityHeaders } = require("./_security");
+const { parseJsonBody, rateLimit, sessionId, setApiSecurityHeaders } = require("./_security");
 
 const MAX_FOLDER_FILES = 140;
 const MAX_FILE_BYTES = 220_000;
@@ -13,6 +14,8 @@ const MAX_URL_LENGTH = 2048;
 const MAX_WEBSITE_REDIRECTS = 4;
 const FETCH_TIMEOUT_MS = 6500;
 const MAX_CONCURRENCY = 6;
+const MAX_FINDINGS_PER_DOCUMENT = 250;
+const MAX_FINDINGS_PER_SCAN = 500;
 
 const severityBase = { LOW: 20, MEDIUM: 45, HIGH: 70, CRITICAL: 88 };
 
@@ -122,12 +125,12 @@ function redactedAuditResult(result) {
   };
 }
 
-async function auditScan(payload, mode, result) {
-  const metadata = payload.metadata || {};
+async function auditScan(req, payload, mode, result) {
+  const ownerSession = sessionId(req);
   await addAuditRecord({
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
-    session_id: metadata.client_session_id || "anonymous",
+    session_id: crypto.createHash("sha256").update(`leakshield-session:${ownerSession}`).digest("hex"),
     consent: { storage: "redacted_scan_summary" },
     request_context: { network_data: "not_collected" },
     submitted_input: {
@@ -369,9 +372,11 @@ function scanDocument({ content, sourceName, filePath, sourceAddress, metadata }
   const findings = [];
   const seen = new Set();
 
+  findingRules:
   for (const rule of rules) {
     rule.pattern.lastIndex = 0;
     for (const match of content.matchAll(rule.pattern)) {
+      if (findings.length >= MAX_FINDINGS_PER_DOCUMENT) break findingRules;
       const value = match[2] || match[1] || match[0];
       if (!isLikelySecret(value, rule.rule_id)) continue;
       const offset = match.index || 0;
@@ -381,8 +386,14 @@ function scanDocument({ content, sourceName, filePath, sourceAddress, metadata }
 
       const pos = lineColumn(content, offset);
       const address = filePath || sourceAddress || sourceName;
-      const contextSnippet = content.slice(Math.max(0, offset - 110), Math.min(content.length, offset + match[0].length + 110)).replace(/\n/g, "\\n");
-      const risk = scoreFinding(rule, value, content, contextSnippet, metadata, address);
+      const rawContext = content.slice(Math.max(0, offset - 110), Math.min(content.length, offset + match[0].length + 110));
+      const risk = scoreFinding(rule, value, content, rawContext, metadata, address);
+      let contextSnippet = rawContext;
+      for (const secretRule of rules) {
+        secretRule.pattern.lastIndex = 0;
+        contextSnippet = contextSnippet.replace(secretRule.pattern, `[REDACTED ${secretRule.secret_type}]`);
+      }
+      contextSnippet = contextSnippet.replace(/\r?\n/g, "\\n");
       const adjustmentText = risk.adjustments.join(" ") || "No contextual adjustment was applied.";
       findings.push({
         id: crypto.randomUUID(),
@@ -427,7 +438,7 @@ function dedupeFindings(findings) {
 function aggregateScan({ sourceName, contentHash, findings, mode, metadata }) {
   const cleanFindings = dedupeFindings(findings).sort(
     (a, b) => (a.file_path || a.source_address || "").localeCompare(b.file_path || b.source_address || "") || a.line_number - b.line_number
-  );
+  ).slice(0, MAX_FINDINGS_PER_SCAN);
   const highest = cleanFindings.length ? Math.max(...cleanFindings.map((item) => item.risk_score)) : 0;
   const overallScore = cleanFindings.length ? Math.min(100, Number((highest + Math.min(12, (cleanFindings.length - 1) * 2.5)).toFixed(2))) : 0;
   return {
@@ -618,11 +629,13 @@ async function assertPublicHttpUrl(rawUrl) {
   if (parsed.href.length > MAX_URL_LENGTH || isBlockedHostname(parsed.hostname)) {
     throw httpError("This website URL is not allowed for public scanning.", 400);
   }
+  parsed.search = "";
+  parsed.hash = "";
 
   const hostname = parsed.hostname.replace(/^\[|\]$/g, "");
   if (net.isIP(hostname)) {
     if (isPrivateAddress(hostname)) throw httpError("Private or internal network addresses cannot be scanned.", 400);
-    return parsed.toString();
+    return { url: parsed.toString(), hostname, addresses: [{ address: hostname, family: net.isIP(hostname) }] };
   }
 
   let addresses;
@@ -634,15 +647,39 @@ async function assertPublicHttpUrl(rawUrl) {
   if (!addresses.length || addresses.some((item) => isPrivateAddress(item.address))) {
     throw httpError("Private or internal network addresses cannot be scanned.", 400);
   }
-  return parsed.toString();
+  return { url: parsed.toString(), hostname, addresses };
+}
+
+function createPinnedDispatcher(hostname, addresses) {
+  const normalizedHostname = hostname.toLowerCase();
+  let current = 0;
+  return new Agent({
+    connect: {
+      lookup(requestedHostname, options, callback) {
+        const requested = requestedHostname.toLowerCase().replace(/^\[|\]$/g, "");
+        if (requested !== normalizedHostname) {
+          callback(new Error("Hostname changed after validation."));
+          return;
+        }
+        if (options?.all) {
+          callback(null, addresses.map(({ address, family }) => ({ address, family })));
+          return;
+        }
+        const selected = addresses[current++ % addresses.length];
+        callback(null, selected.address, selected.family);
+      }
+    }
+  });
 }
 
 async function fetchText(url, redirectCount = 0) {
-  const safeUrl = await assertPublicHttpUrl(url);
+  const target = await assertPublicHttpUrl(url);
+  const dispatcher = createPinnedDispatcher(target.hostname, target.addresses);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
-    const response = await fetch(safeUrl, {
+    const response = await fetch(target.url, {
+      dispatcher,
       redirect: "manual",
       signal: controller.signal,
       headers: {
@@ -651,20 +688,21 @@ async function fetchText(url, redirectCount = 0) {
       }
     });
     if (response.status >= 300 && response.status < 400 && response.headers.get("location")) {
-      if (redirectCount >= MAX_WEBSITE_REDIRECTS) return { url: safeUrl, ok: false, status: response.status, content: "" };
-      const nextUrl = new URL(response.headers.get("location"), response.url || safeUrl).toString();
+      if (redirectCount >= MAX_WEBSITE_REDIRECTS) return { url: target.url, ok: false, status: response.status, content: "" };
+      const nextUrl = new URL(response.headers.get("location"), response.url || target.url).toString();
       return fetchText(nextUrl, redirectCount + 1);
     }
     const contentType = response.headers.get("content-type") || "";
     if (!response.ok || !isTextualResponse(response.url || url, contentType)) {
-      return { url: safeUrl, ok: false, status: response.status, content: "" };
+      return { url: target.url, ok: false, status: response.status, content: "" };
     }
-    return { url: response.url || safeUrl, ok: true, status: response.status, content: (await response.text()).slice(0, MAX_FILE_BYTES) };
+    return { url: response.url || target.url, ok: true, status: response.status, content: (await response.text()).slice(0, MAX_FILE_BYTES) };
   } catch (error) {
     if (error.statusCode) throw error;
-    return { url: safeUrl, ok: false, status: 0, content: "", error: error.name || "fetch-failed" };
+    return { url: target.url, ok: false, status: 0, content: "", error: "fetch-failed" };
   } finally {
     clearTimeout(timer);
+    await dispatcher.close();
   }
 }
 
@@ -742,7 +780,8 @@ module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
   if (req.method === "GET") return res.status(200).json([]);
   if (req.method !== "POST") return res.status(405).json({ detail: "Method not allowed" });
-  if (!rateLimit(req, res, "scan-create", { limit: 35, windowMs: 10 * 60 * 1000 })) return;
+  if (!rateLimit(req, res, "scan-create", { limit: 8, windowMs: 10 * 60 * 1000 })) return;
+  if (!sessionId(req)) return res.status(400).json({ detail: "A valid X-LeakShield-Session header is required." });
 
   try {
     const payload = parseJsonBody(req, 1_500_000);
@@ -750,19 +789,21 @@ module.exports = async function handler(req, res) {
     validatePayload(payload, mode);
     if (mode === "website") {
       const result = await scanWebsite(payload);
-      await auditScan(payload, mode, result);
+      await auditScan(req, payload, mode, result);
       return res.status(201).json(result);
     }
     if (mode === "project-folder") {
       const result = scanProject(payload);
-      await auditScan(payload, mode, result);
+      await auditScan(req, payload, mode, result);
       return res.status(201).json(result);
     }
     if (!payload.content) return res.status(400).json({ detail: "content is required" });
     const result = scanText(payload);
-    await auditScan(payload, mode, result);
+    await auditScan(req, payload, mode, result);
     return res.status(201).json(result);
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ detail: error.message || "Scan failed" });
+    const statusCode = Number.isInteger(error.statusCode) ? error.statusCode : 500;
+    const detail = statusCode >= 400 && statusCode < 500 ? error.message : "Scan failed";
+    return res.status(statusCode).json({ detail });
   }
 };

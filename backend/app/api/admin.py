@@ -4,12 +4,13 @@ import hashlib
 import hmac
 import json
 import os
+import secrets
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,15 +18,17 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_session
 from app.models import Finding, Scan
+from app.security import enforce_admin_login_rate_limit
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-SESSION_TTL_SECONDS = 8 * 60 * 60
+SESSION_TTL_SECONDS = 2 * 60 * 60
+SESSION_ISSUER = "leakshield-admin"
 
 
 class AdminLogin(BaseModel):
     email: str = Field(min_length=3, max_length=320)
-    password: str = Field(min_length=1, max_length=1024)
+    password: str = Field(min_length=1, max_length=256)
 
 
 def _credentials() -> list[tuple[str, str]]:
@@ -51,10 +54,10 @@ def _credentials() -> list[tuple[str, str]]:
 
 def _session_secret() -> bytes:
     configured = os.getenv("ADMIN_SESSION_SECRET", "")
-    if configured:
+    if len(configured.encode()) >= 32:
         return configured.encode()
     seed = "|".join(f"{email}:{password}" for email, password in _credentials())
-    return hashlib.sha256(seed.encode()).digest()
+    return hashlib.sha256(f"leakshield-admin-session-v1|{seed}".encode()).digest()
 
 
 def _safe_equal(left: str, right: str) -> bool:
@@ -70,8 +73,18 @@ def _decode(value: str) -> bytes:
 
 
 def _create_token(email: str) -> str:
+    issued_at = int(time.time())
     payload = _encode(
-        json.dumps({"email": email, "exp": int(time.time()) + SESSION_TTL_SECONDS}, separators=(",", ":")).encode()
+        json.dumps(
+            {
+                "email": email,
+                "iss": SESSION_ISSUER,
+                "iat": issued_at,
+                "exp": issued_at + SESSION_TTL_SECONDS,
+                "jti": secrets.token_hex(16),
+            },
+            separators=(",", ":"),
+        ).encode()
     )
     signature = _encode(hmac.new(_session_secret(), payload.encode(), hashlib.sha256).digest())
     return f"{payload}.{signature}"
@@ -80,10 +93,24 @@ def _create_token(email: str) -> str:
 def _authenticated_admin(authorization: Annotated[str | None, Header()] = None) -> str:
     token = authorization.removeprefix("Bearer ") if authorization else ""
     try:
+        if len(token) > 2048:
+            raise ValueError
         payload, signature = token.split(".", 1)
         expected = _encode(hmac.new(_session_secret(), payload.encode(), hashlib.sha256).digest())
         decoded = json.loads(_decode(payload))
-        if not hmac.compare_digest(signature, expected) or decoded.get("exp", 0) < time.time():
+        now = int(time.time())
+        issued_at = int(decoded.get("iat", 0))
+        expires_at = int(decoded.get("exp", 0))
+        active_admin = any(_safe_equal(str(decoded.get("email", "")).lower(), email.lower()) for email, _ in _credentials())
+        if (
+            not hmac.compare_digest(signature, expected)
+            or decoded.get("iss") != SESSION_ISSUER
+            or issued_at > now + 30
+            or expires_at <= now
+            or expires_at - issued_at > SESSION_TTL_SECONDS
+            or not isinstance(decoded.get("jti"), str)
+            or not active_admin
+        ):
             raise ValueError
         return str(decoded["email"])
     except (binascii.Error, KeyError, UnicodeDecodeError, ValueError, TypeError, json.JSONDecodeError):
@@ -95,8 +122,10 @@ def _iso(value: datetime | None) -> str:
 
 
 def _redacted_record(scan: Scan) -> dict[str, Any]:
-    session_id = str(scan.scan_metadata.get("client_session_id") or "anonymous")
-    user_id = f"usr_{hashlib.sha256(session_id.encode()).hexdigest()[:18]}"
+    metadata = scan.scan_metadata or {}
+    legacy_session = str(metadata.get("client_session_id") or "anonymous")
+    session_id = scan.owner_id or hashlib.sha256(f"legacy-session:{legacy_session}".encode()).hexdigest()
+    user_id = f"usr_{session_id[:18]}"
     findings = [
         {
             "rule_id": finding.rule_id,
@@ -105,10 +134,15 @@ def _redacted_record(scan: Scan) -> dict[str, Any]:
             "risk_score": finding.risk_score,
             "risk_level": finding.risk_level,
             "file_path": None,
-            "explanation": finding.explanation,
+            "explanation": {
+                key: finding.explanation.get(key)
+                for key in ("summary", "business_impact", "remediation")
+                if finding.explanation.get(key)
+            },
         }
-        for finding in scan.findings
+        for finding in scan.findings[:100]
     ]
+    result_metadata = metadata.get("_result", {})
     return {
         "id": scan.id,
         "created_at": _iso(scan.created_at),
@@ -118,16 +152,16 @@ def _redacted_record(scan: Scan) -> dict[str, Any]:
         "storage_path": f"database/{user_id}/{scan.id}",
         "consent": {"storage": "redacted_scan_summary"},
         "request_context": {"network_data": "not_collected"},
-        "submitted_input": {"mode": "text", "source_name": scan.source_name},
+        "submitted_input": {"mode": metadata.get("mode", "text"), "source_name": scan.source_name},
         "result_shown_to_user": {
             "id": scan.id,
             "source_name": scan.source_name,
             "overall_score": scan.overall_score,
             "overall_level": scan.overall_level,
             "finding_count": scan.finding_count,
-            "public_exposure_count": 0,
-            "scanned_addresses": [],
-            "recommendation": None,
+            "public_exposure_count": result_metadata.get("public_exposure_count", 0),
+            "scanned_addresses": result_metadata.get("scanned_addresses", [])[:100],
+            "recommendation": result_metadata.get("recommendation"),
             "findings": findings,
         },
     }
@@ -160,10 +194,13 @@ def _group_users(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 @router.post("")
-async def login(payload: AdminLogin) -> dict[str, str]:
+async def login(payload: AdminLogin, request: Request) -> dict[str, str]:
+    enforce_admin_login_rate_limit(request)
     credentials = _credentials()
     if not credentials:
         raise HTTPException(status_code=503, detail="Admin credentials are not configured")
+    if any(len(password) < 12 for _, password in credentials):
+        raise HTTPException(status_code=503, detail="Admin credentials do not meet the minimum security policy")
     admin = next(
         (
             email
@@ -183,7 +220,7 @@ async def audit_dashboard(
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> dict[str, Any]:
     result = await session.execute(
-        select(Scan).options(selectinload(Scan.findings)).order_by(desc(Scan.created_at)).limit(500)
+        select(Scan).options(selectinload(Scan.findings)).order_by(desc(Scan.created_at)).limit(200)
     )
     records = [_redacted_record(scan) for scan in result.scalars().all()]
     return {

@@ -22,7 +22,7 @@ async def test_cached_scan_sets_cache_hit_without_duplicate_keyword(monkeypatch)
     }
     monkeypatch.setattr(cache_client, "get_json", AsyncMock(return_value=cached))
 
-    response = await ScanService(AsyncMock()).scan(
+    response = await ScanService(AsyncMock(), "a" * 64).scan(
         ScanRequest(content="safe content", source_name="cached.env")
     )
 

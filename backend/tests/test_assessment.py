@@ -6,9 +6,11 @@ from fastapi import HTTPException
 
 from app.engines.assessment.website import (
     _assert_public_url,
+    _clean_url,
     _finding,
     _grade,
     _header_assessment,
+    _pinned_request,
     _subdomain_assessment,
 )
 
@@ -58,6 +60,18 @@ def test_private_targets_are_rejected(monkeypatch) -> None:
         asyncio.run(_assert_public_url("http://internal.example"))
 
 
+def test_url_credentials_and_query_values_are_not_retained() -> None:
+    assert _clean_url("https://user:secret@example.com/path?token=private#section") == "https://example.com/path"
+
+
+def test_validated_hostname_is_pinned_to_its_public_address() -> None:
+    request_url, headers, extensions = _pinned_request("https://example.com:8443/path", "93.184.216.34")
+
+    assert request_url == "https://93.184.216.34:8443/path"
+    assert headers == {"Host": "example.com:8443"}
+    assert extensions == {"sni_hostname": "example.com"}
+
+
 def test_invalid_ports_are_rejected_as_validation_errors() -> None:
     with pytest.raises(HTTPException) as error:
         asyncio.run(_assert_public_url("https://example.com:99999/"))
@@ -78,3 +92,23 @@ def test_subdomain_resolver_exhaustion_does_not_abort_assessment(monkeypatch) ->
     results = asyncio.run(run())
     assert results
     assert all(item["alive"] is False for item in results)
+
+
+def test_private_subdomain_addresses_are_never_requested(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.engines.assessment.website.socket.getaddrinfo",
+        lambda *_args, **_kwargs: [(2, 1, 6, "", ("127.0.0.1", 0))],
+    )
+    requested: list[str] = []
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        requested.append(str(request.url))
+        return httpx.Response(200, json=[])
+
+    async def run() -> list[dict]:
+        async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+            return await _subdomain_assessment(client, "example.com")
+
+    results = asyncio.run(run())
+    assert requested == ["https://crt.sh/?q=%25.example.com&output=json"]
+    assert all(item.get("blocked") is True for item in results)

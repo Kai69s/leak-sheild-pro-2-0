@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 from datetime import datetime, timezone
 from typing import Any
@@ -19,8 +20,9 @@ from app.schemas import Explanation, FindingResponse, ScanRequest, ScanResponse
 
 
 class ScanService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: AsyncSession, owner_id: str) -> None:
         self.session = session
+        self.owner_id = owner_id
         self.settings = get_settings()
         self.detector = DetectionEngine()
         self.risk_engine = RiskEngine()
@@ -29,7 +31,11 @@ class ScanService:
 
     async def scan(self, payload: ScanRequest) -> ScanResponse:
         if payload.mode == "website":
-            assessment = await self.website_engine.assess(payload.website_url or payload.url or "")
+            try:
+                async with asyncio.timeout(45):
+                    assessment = await self.website_engine.assess(payload.website_url or payload.url or "")
+            except TimeoutError:
+                raise HTTPException(status_code=504, detail="Website assessment exceeded the safe time limit") from None
             return await self._persist_assessment(payload, assessment)
 
         content, file_ranges = self._scan_content(payload)
@@ -38,7 +44,7 @@ class ScanService:
 
         content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         metadata_hash = hashlib.sha256(str(sorted(payload.metadata.items())).encode("utf-8")).hexdigest()
-        cache_key = f"scan:{payload.mode}:{content_hash}:{metadata_hash}:{payload.source_name}"
+        cache_key = f"scan:{self.owner_id}:{payload.mode}:{content_hash}:{metadata_hash}:{payload.source_name}"
         cached = await cache_client.get_json(cache_key)
         if cached:
             cached["cache_hit"] = True
@@ -49,6 +55,7 @@ class ScanService:
         risk_results = []
 
         scan = Scan(
+            owner_id=self.owner_id,
             source_name=payload.source_name,
             content_hash=content_hash,
             scan_metadata={**payload.metadata, "mode": payload.mode, "scanned_files": max(1, len(payload.files))},
@@ -117,7 +124,7 @@ class ScanService:
         previous_result = await self.session.execute(
             select(Scan)
             .options(selectinload(Scan.findings))
-            .where(Scan.source_name == result["source_name"])
+            .where(Scan.source_name == result["source_name"], Scan.owner_id == self.owner_id)
             .order_by(desc(Scan.created_at))
             .limit(1)
         )
@@ -146,6 +153,7 @@ class ScanService:
             "comparison",
         )
         scan = Scan(
+            owner_id=self.owner_id,
             source_name=result["source_name"],
             content_hash=result["content_hash"],
             overall_score=result["overall_score"],

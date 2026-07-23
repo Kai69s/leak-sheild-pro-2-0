@@ -7,12 +7,15 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const ADMIN_EXTRA_EMAIL = process.env.ADMIN_EXTRA_EMAIL;
 const ADMIN_EXTRA_PASSWORD = process.env.ADMIN_EXTRA_PASSWORD;
 const SESSION_SECRET =
-  process.env.ADMIN_SESSION_SECRET ||
+  process.env.ADMIN_SESSION_SECRET?.length >= 32
+    ? process.env.ADMIN_SESSION_SECRET
+    :
   crypto
     .createHash("sha256")
-    .update(adminCredentials().map(({ email, password }) => `${email}:${password}`).join("|") || crypto.randomUUID())
+    .update(`leakshield-admin-session:${adminCredentials().map(({ email, password }) => `${email}:${password}`).join("|") || crypto.randomUUID()}`)
     .digest("hex");
-const SESSION_TTL_MS = 8 * 60 * 60 * 1000;
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const TOKEN_ISSUER = "leakshield-admin";
 
 function appendCredential(credentials, email, password) {
   if (email && password) credentials.push({ email: String(email), password: String(password) });
@@ -65,7 +68,16 @@ function sign(payload) {
 }
 
 function createToken(email) {
-  const payload = base64Url(JSON.stringify({ email, exp: Date.now() + SESSION_TTL_MS }));
+  const now = Date.now();
+  const payload = base64Url(
+    JSON.stringify({
+      email,
+      iss: TOKEN_ISSUER,
+      iat: now,
+      exp: now + SESSION_TTL_MS,
+      jti: crypto.randomUUID()
+    })
+  );
   return `${payload}.${sign(payload)}`;
 }
 
@@ -76,7 +88,20 @@ function verifyToken(req) {
   if (!payload || !signature || !safeStringEqual(sign(payload), signature)) return null;
   try {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (!decoded.exp || decoded.exp < Date.now()) return null;
+    const now = Date.now();
+    const validAdmin = adminCredentials().some((credential) => safeCredentialEqual(decoded.email, credential.email));
+    if (
+      decoded.iss !== TOKEN_ISSUER ||
+      !Number.isFinite(decoded.iat) ||
+      !Number.isFinite(decoded.exp) ||
+      decoded.iat > now + 30_000 ||
+      decoded.exp <= now ||
+      decoded.exp - decoded.iat > SESSION_TTL_MS ||
+      !decoded.jti ||
+      !validAdmin
+    ) {
+      return null;
+    }
     return decoded;
   } catch {
     return null;
@@ -89,9 +114,9 @@ module.exports = async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(204).end();
 
   if (req.method === "POST") {
-    if (!rateLimit(req, res, "admin-login", { limit: 8, windowMs: 15 * 60 * 1000 })) return;
+    if (!rateLimit(req, res, "admin-login", { limit: 5, windowMs: 15 * 60 * 1000 })) return;
     const credentials = adminCredentials();
-    if (!credentials.length) {
+    if (!credentials.length || credentials.some(({ password }) => password.length < 12)) {
       return json(res, 503, { detail: "Admin credentials are not configured" });
     }
     let body;
@@ -100,7 +125,9 @@ module.exports = async function handler(req, res) {
     } catch (error) {
       return json(res, error.statusCode || 400, { detail: error.message });
     }
-    const admin = findAdmin(body.email, body.password);
+    const email = typeof body.email === "string" ? body.email.slice(0, 320) : "";
+    const password = typeof body.password === "string" ? body.password.slice(0, 256) : "";
+    const admin = findAdmin(email, password);
     if (!admin) {
       return json(res, 401, { detail: "Invalid admin credentials" });
     }

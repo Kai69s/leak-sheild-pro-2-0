@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import ipaddress
 import json
+import logging
 import re
 import socket
 import ssl
@@ -11,6 +12,7 @@ from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 
 import dns.asyncresolver
+import dns.exception
 import httpx
 from fastapi import HTTPException
 
@@ -53,6 +55,7 @@ HEADER_RULES = (
     ("cross-origin-resource-policy", "Cross-Origin-Resource-Policy", "LOW", "same-origin"),
 )
 SEVERITY_SCORE = {"LOW": 20.0, "MEDIUM": 45.0, "HIGH": 72.0, "CRITICAL": 92.0}
+logger = logging.getLogger(__name__)
 
 
 class LinkCollector(HTMLParser):
@@ -86,10 +89,18 @@ def _clean_url(value: str) -> str:
         raise HTTPException(status_code=400, detail="The website URL contains an invalid host or port") from error
     netloc_host = f"[{host}]" if ":" in host else host
     netloc = netloc_host if not port else f"{netloc_host}:{port}"
-    return urlunparse((scheme, netloc, parsed.path or "/", "", parsed.query, ""))
+    # Query values can contain credentials and are unnecessary for this passive path assessment.
+    return urlunparse((scheme, netloc, parsed.path or "/", "", "", ""))
 
 
-async def _assert_public_url(value: str) -> str:
+def _is_global_address(value: str) -> bool:
+    try:
+        return ipaddress.ip_address(value.split("%")[0]).is_global
+    except ValueError:
+        return False
+
+
+async def _resolve_public_target(value: str) -> tuple[str, str]:
     safe_url = _clean_url(value)
     hostname = urlparse(safe_url).hostname or ""
     if hostname in {"localhost", "localhost.localdomain"} or hostname.endswith((".local", ".internal")):
@@ -99,9 +110,24 @@ async def _assert_public_url(value: str) -> str:
     except OSError as error:
         raise HTTPException(status_code=400, detail="The target hostname could not be resolved") from error
     ips = {item[4][0].split("%")[0] for item in addresses}
-    if not ips or any(not ipaddress.ip_address(address).is_global for address in ips):
+    if not ips or any(not _is_global_address(address) for address in ips):
         raise HTTPException(status_code=400, detail="Private, reserved, and loopback targets are not allowed")
+    return safe_url, sorted(ips)[0]
+
+
+async def _assert_public_url(value: str) -> str:
+    safe_url, _address = await _resolve_public_target(value)
     return safe_url
+
+
+def _pinned_request(safe_url: str, address: str) -> tuple[str, dict[str, str], dict[str, str]]:
+    parsed = urlparse(safe_url)
+    address_host = f"[{address}]" if ":" in address else address
+    netloc = address_host if not parsed.port else f"{address_host}:{parsed.port}"
+    request_url = urlunparse((parsed.scheme, netloc, parsed.path or "/", "", "", ""))
+    headers = {"Host": parsed.netloc}
+    extensions = {"sni_hostname": parsed.hostname or ""}
+    return request_url, headers, extensions
 
 
 def _same_origin(candidate: str, origin: str) -> bool:
@@ -121,15 +147,11 @@ def _absolute(base: str, candidate: str) -> str | None:
 
 
 async def _fetch(client: httpx.AsyncClient, url: str, redirects: int = 0) -> dict[str, Any]:
-    safe_url = await _assert_public_url(url)
+    safe_url, address = await _resolve_public_target(url)
+    request_url, headers, extensions = _pinned_request(safe_url, address)
     try:
-        async with client.stream("GET", safe_url) as response:
-            network_stream = response.extensions.get("network_stream")
-            peer = network_stream.get_extra_info("server_addr") if network_stream else None
-            if peer:
-                peer_ip = str(peer[0] if isinstance(peer, tuple) else peer).split("%")[0]
-                if not ipaddress.ip_address(peer_ip).is_global:
-                    raise HTTPException(status_code=400, detail="The target connected to a non-public network address")
+        async with client.stream("GET", request_url, headers=headers, extensions=extensions) as response:
+            _assert_public_peer(response)
             if response.status_code in {301, 302, 303, 307, 308} and response.headers.get("location"):
                 if redirects >= 3:
                     raise HTTPException(status_code=400, detail="The target redirected too many times")
@@ -143,7 +165,7 @@ async def _fetch(client: httpx.AsyncClient, url: str, redirects: int = 0) -> dic
             textual = any(item in content_type for item in ("text", "json", "javascript", "xml")) or not content_type
             text = bytes(chunks[:MAX_RESPONSE_BYTES]).decode(response.encoding or "utf-8", errors="replace") if textual else ""
             return {
-                "url": str(response.url),
+                "url": safe_url,
                 "status": response.status_code,
                 "headers": dict(response.headers),
                 "content_type": content_type,
@@ -154,6 +176,16 @@ async def _fetch(client: httpx.AsyncClient, url: str, redirects: int = 0) -> dic
         raise HTTPException(status_code=504, detail=f"Timed out while requesting {urlparse(safe_url).path or '/'}") from error
     except httpx.HTTPError as error:
         raise HTTPException(status_code=502, detail="The public target could not be fetched") from error
+
+
+def _assert_public_peer(response: httpx.Response) -> None:
+    network_stream = response.extensions.get("network_stream")
+    peer = network_stream.get_extra_info("server_addr") if network_stream else None
+    if not peer:
+        return
+    peer_ip = str(peer[0] if isinstance(peer, tuple) else peer).split("%")[0]
+    if not _is_global_address(peer_ip):
+        raise HTTPException(status_code=400, detail="The target connected to a non-public network address")
 
 
 def _header_assessment(headers: dict[str, str]) -> list[dict[str, Any]]:
@@ -204,34 +236,34 @@ async def _dns_assessment(hostname: str) -> dict[str, Any]:
         try:
             answer = await resolver.resolve(hostname, record_type, lifetime=2.5)
             records[record_type] = [str(item).strip('"') for item in answer]
-        except Exception:
+        except dns.exception.DNSException:
             records[record_type] = []
     txt = records["TXT"]
     records["SPF"] = [item for item in txt if item.lower().startswith("v=spf1")]
     try:
         dmarc = await resolver.resolve(f"_dmarc.{hostname}", "TXT", lifetime=2.5)
         records["DMARC"] = [str(item).strip('"') for item in dmarc]
-    except Exception:
+    except dns.exception.DNSException:
         records["DMARC"] = []
     dkim_records = []
     for selector in ("default", "google", "selector1", "selector2"):
         try:
             answer = await resolver.resolve(f"{selector}._domainkey.{hostname}", "TXT", lifetime=1.5)
             dkim_records.extend(f"{selector}: {str(item).strip(chr(34))}" for item in answer)
-        except Exception:
+        except dns.exception.DNSException:
             continue
     records["DKIM"] = dkim_records
     try:
         await resolver.resolve(hostname, "DNSKEY", lifetime=2.5)
         dnssec = True
-    except Exception:
+    except dns.exception.DNSException:
         dnssec = False
     return {"records": records, "dnssec": dnssec}
 
 
-def _ssl_sync(hostname: str, port: int) -> dict[str, Any]:
+def _ssl_sync(hostname: str, address: str, port: int) -> dict[str, Any]:
     context = ssl.create_default_context()
-    with socket.create_connection((hostname, port), timeout=5) as raw_socket:
+    with socket.create_connection((address, port), timeout=5) as raw_socket:
         with context.wrap_socket(raw_socket, server_hostname=hostname) as secure_socket:
             certificate = secure_socket.getpeercert()
             expires = datetime.strptime(certificate["notAfter"], "%b %d %H:%M:%S %Y %Z").replace(tzinfo=timezone.utc)
@@ -255,9 +287,16 @@ async def _ssl_assessment(url: str) -> dict[str, Any]:
     if parsed.scheme != "https":
         return {"valid": False, "error": "The target does not use HTTPS", "days_remaining": 0, "weak_configuration": True}
     try:
-        return await asyncio.to_thread(_ssl_sync, parsed.hostname or "", parsed.port or 443)
-    except Exception as error:
-        return {"valid": False, "error": str(error)[:160], "days_remaining": 0, "weak_configuration": True}
+        safe_url, address = await _resolve_public_target(url)
+        safe_host = urlparse(safe_url).hostname or ""
+        return await asyncio.to_thread(_ssl_sync, safe_host, address, parsed.port or 443)
+    except (OSError, ssl.SSLError, KeyError, ValueError):
+        return {
+            "valid": False,
+            "error": "TLS negotiation or certificate validation failed",
+            "days_remaining": 0,
+            "weak_configuration": True,
+        }
 
 
 async def _subdomain_assessment(client: httpx.AsyncClient, hostname: str) -> list[dict[str, Any]]:
@@ -271,8 +310,8 @@ async def _subdomain_assessment(client: httpx.AsyncClient, hostname: str) -> lis
                     clean = name.lower().removeprefix("*.").strip()
                     if clean == root or clean.endswith(f".{root}"):
                         names.add(clean)
-    except Exception:
-        pass
+    except (httpx.HTTPError, json.JSONDecodeError, ValueError):
+        logger.info("Certificate Transparency lookup unavailable")
 
     resolver_slots = asyncio.Semaphore(5)
 
@@ -283,17 +322,36 @@ async def _subdomain_assessment(client: httpx.AsyncClient, hostname: str) -> lis
                 ips = sorted({item[4][0] for item in addresses})
             except OSError:
                 return {"hostname": name, "alive": False, "status": None, "ips": [], "technology": None, "ssl": None}
+            if not ips or any(not _is_global_address(address) for address in ips):
+                return {
+                    "hostname": name,
+                    "alive": False,
+                    "status": None,
+                    "ips": [],
+                    "technology": None,
+                    "ssl": None,
+                    "blocked": True,
+                }
             status = None
             server = None
             tls = False
             for scheme in ("https", "http"):
                 try:
-                    response = await client.get(f"{scheme}://{name}/", timeout=2.5)
-                    status = response.status_code
-                    server = response.headers.get("server")
-                    tls = scheme == "https"
-                    break
-                except Exception:
+                    safe_url = f"{scheme}://{name}/"
+                    request_url, headers, extensions = _pinned_request(safe_url, ips[0])
+                    async with client.stream(
+                        "GET",
+                        request_url,
+                        headers=headers,
+                        extensions=extensions,
+                        timeout=2.5,
+                    ) as response:
+                        _assert_public_peer(response)
+                        status = response.status_code
+                        server = response.headers.get("server")
+                        tls = scheme == "https"
+                        break
+                except (HTTPException, httpx.HTTPError):
                     continue
         return {"hostname": name, "alive": status is not None, "status": status, "ips": ips, "technology": server, "ssl": tls}
 
@@ -324,8 +382,9 @@ async def _threat_intelligence(client: httpx.AsyncClient, hostname: str) -> dict
                     "whois_summary": data.get("remarks", [{}])[0].get("description", [None])[0] if data.get("remarks") else None,
                 }
             )
-    except Exception:
-        pass
+    except (httpx.HTTPError, json.JSONDecodeError, ValueError, IndexError, TypeError):
+        logger.info("RDAP lookup unavailable")
+        return result
     return result
 
 
@@ -588,7 +647,7 @@ class WebsiteAssessmentEngine:
                 )
 
             deduped = {f"{item['rule_id']}:{item.get('source_address')}:{item['value_hash']}": item for item in findings}
-            findings = sorted(deduped.values(), key=lambda item: item["risk_score"], reverse=True)
+            findings = sorted(deduped.values(), key=lambda item: item["risk_score"], reverse=True)[:500]
             risks = [item["risk_score"] for item in findings]
             overall_risk = round(min(100, (max(risks) if risks else 0) + min(10, max(0, len(risks) - 1))), 1)
             security_score = round(max(0, 100 - overall_risk), 1)

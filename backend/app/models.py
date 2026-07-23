@@ -11,6 +11,7 @@ class Scan(Base):
     __tablename__ = "scans"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid4()))
+    owner_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     source_name: Mapped[str] = mapped_column(String(255), default="manual-input")
     content_hash: Mapped[str] = mapped_column(String(64), index=True)
     overall_score: Mapped[float] = mapped_column(Float, default=0)

@@ -6,14 +6,42 @@ const API_BASE =
 const HISTORY_KEY = "leakshield.scanHistory";
 const DETAIL_KEY = "leakshield.scanDetails";
 const ADMIN_TOKEN_KEY = "leakshield.adminToken";
+const SESSION_KEY = "leakshield.sessionId";
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+let memorySessionId = "";
+
+export function clientSessionId() {
+  if (memorySessionId) return memorySessionId;
+  try {
+    const existing = localStorage.getItem(SESSION_KEY) || "";
+    if (UUID_V4.test(existing)) {
+      memorySessionId = existing.toLowerCase();
+      return memorySessionId;
+    }
+  } catch {
+    // A memory-only identifier still protects scan ownership in strict privacy modes.
+  }
+  memorySessionId = crypto.randomUUID();
+  try {
+    localStorage.setItem(SESSION_KEY, memorySessionId);
+  } catch {
+    // The current page can continue with the memory-only identifier.
+  }
+  return memorySessionId;
+}
 
 async function request(path, options = {}) {
+  const { headers: optionHeaders = {}, ...requestOptions } = options;
   const response = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
     credentials: "same-origin",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     referrerPolicy: "no-referrer",
-    ...options
+    ...requestOptions,
+    headers: {
+      "Content-Type": "application/json",
+      "X-LeakShield-Session": clientSessionId(),
+      ...optionHeaders
+    }
   });
   if (!response.ok) {
     const body = await response.text();
@@ -112,7 +140,7 @@ function readHistory() {
 
 function readDetails() {
   try {
-    return JSON.parse(localStorage.getItem(DETAIL_KEY) || "{}");
+    return JSON.parse(sessionStorage.getItem(DETAIL_KEY) || "{}");
   } catch {
     return {};
   }
@@ -131,7 +159,7 @@ function saveScan(scan) {
   try {
     const details = readDetails();
     details[scan.id] = scan;
-    localStorage.setItem(DETAIL_KEY, JSON.stringify(details));
+    sessionStorage.setItem(DETAIL_KEY, JSON.stringify(details));
     const history = [historyItem, ...readHistory().filter((item) => item.id !== scan.id)].slice(0, 50);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
   } catch {

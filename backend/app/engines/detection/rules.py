@@ -19,10 +19,35 @@ def compile_rule(pattern: str) -> re.Pattern[str]:
     return re.compile(pattern, re.MULTILINE)
 
 
+def create_rule(
+    *,
+    rule_id: str,
+    finding_type: str,
+    severity: str,
+    confidence: float,
+    pattern: re.Pattern[str],
+    description: str,
+    attacker_impact: str,
+    consequence: str,
+    remediation: str,
+) -> SecretRule:
+    return SecretRule(
+        rule_id=rule_id,
+        secret_type=finding_type,
+        severity=severity,
+        confidence=confidence,
+        pattern=pattern,
+        description=description,
+        attacker_impact=attacker_impact,
+        consequence=consequence,
+        remediation=remediation,
+    )
+
+
 SECRET_RULES: tuple[SecretRule, ...] = (
-    SecretRule(
+    create_rule(
         rule_id="aws-access-key-id",
-        secret_type="AWS Access Key ID",
+        finding_type="AWS Access Key ID",
         severity="HIGH",
         confidence=0.95,
         pattern=compile_rule(r"\b(?:AKIA|ASIA)[A-Z0-9]{16}\b"),
@@ -31,9 +56,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="Cloud resources, S3 data, IAM permissions, and billing can be abused.",
         remediation="Disable the access key, rotate credentials, and audit CloudTrail activity.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="aws-secret-access-key",
-        secret_type="AWS Secret Access Key",
+        finding_type="AWS Secret Access Key",
         severity="CRITICAL",
         confidence=0.9,
         pattern=compile_rule(
@@ -44,9 +69,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="This can lead to infrastructure takeover, data theft, and financial loss.",
         remediation="Revoke the key immediately, rotate dependent secrets, and review IAM policy scope.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="generic-api-key",
-        secret_type="API Key",
+        finding_type="API Key",
         severity="MEDIUM",
         confidence=0.75,
         pattern=compile_rule(
@@ -57,9 +82,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="Quota abuse, data access, account takeover, or service disruption may occur.",
         remediation="Rotate the API key and move it to a managed secret store.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="password-assignment",
-        secret_type="Password",
+        finding_type="Password",
         severity="HIGH",
         confidence=0.7,
         pattern=compile_rule(
@@ -70,9 +95,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="Credential reuse may expand the breach to databases, apps, or admin panels.",
         remediation="Change the password, invalidate active sessions, and store secrets outside code.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="database-url",
-        secret_type="Database URL",
+        finding_type="Database URL",
         severity="CRITICAL",
         confidence=0.88,
         pattern=compile_rule(
@@ -83,9 +108,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="Sensitive records may be read, modified, deleted, or ransomed.",
         remediation="Rotate database credentials, restrict network access, and review database logs.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="bearer-token",
-        secret_type="Bearer Token",
+        finding_type="Bearer Token",
         severity="HIGH",
         confidence=0.8,
         pattern=compile_rule(r"(?i)\bbearer\s+([A-Za-z0-9._\-]{24,2048})"),
@@ -94,9 +119,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="API sessions, user data, and privileged workflows may be compromised.",
         remediation="Revoke the token, shorten token lifetime, and rotate signing keys if needed.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="jwt-token",
-        secret_type="JWT Token",
+        finding_type="JWT Token",
         severity="HIGH",
         confidence=0.85,
         pattern=compile_rule(r"\beyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]{10,}\b"),
@@ -105,9 +130,9 @@ SECRET_RULES: tuple[SecretRule, ...] = (
         consequence="Application sessions and API authorizations may be abused.",
         remediation="Revoke the token, rotate affected signing secrets, and review session logs.",
     ),
-    SecretRule(
+    create_rule(
         rule_id="private-key-block",
-        secret_type="Private Key",
+        finding_type="Private Key",
         severity="CRITICAL",
         confidence=0.98,
         pattern=compile_rule(

@@ -26,7 +26,17 @@ import {
   Sun,
   Zap
 } from "lucide-react";
-import { adminLogin, adminLogout, adminToken, clearAdminAudit, createScan, fetchAdminAudit, getScan, listScans } from "./api";
+import {
+  adminLogin,
+  adminLogout,
+  adminToken,
+  clearAdminAudit,
+  clientSessionId,
+  createScan,
+  fetchAdminAudit,
+  getScan,
+  listScans
+} from "./api";
 
 const AssessmentDashboard = lazy(() => import("./components/AssessmentDashboard"));
 const KnowledgeBase = lazy(() => import("./components/KnowledgeBase"));
@@ -38,6 +48,8 @@ const defaultInput = `# Paste code, configuration, logs, or public URLs here.
 service_name=public-demo
 environment=review
 scan_target=https://example.com`;
+const MAX_FOLDER_FILE_BYTES = 300_000;
+const MAX_FOLDER_TOTAL_BYTES = 1_200_000;
 
 const levels = {
   LOW: "text-cyan-200 border-cyan-300/40 bg-cyan-300/10",
@@ -58,24 +70,11 @@ const orbitLatitudeNodes = orbitLatitudes.map((item) => (
 const orbitSatelliteNodes = orbitSatellites.map((item) => (
   <span key={item} className="satellite-dot" style={{ "--i": item }} />
 ));
-const SESSION_KEY = "leakshield.sessionId";
 const SERVERLESS_FEATURES_ENABLED =
   import.meta.env.VITE_SERVERLESS_FEATURES === "true" ||
   (import.meta.env.VITE_SERVERLESS_FEATURES !== "false" &&
     typeof window !== "undefined" &&
     !["localhost", "127.0.0.1"].includes(window.location.hostname));
-
-function ensureSessionId() {
-  const id = crypto.randomUUID();
-  try {
-    const existing = localStorage.getItem(SESSION_KEY);
-    if (existing) return existing;
-    localStorage.setItem(SESSION_KEY, id);
-  } catch {
-    // A temporary session still allows scanning when browser storage is disabled.
-  }
-  return id;
-}
 
 function riskColor(level) {
   return {
@@ -109,7 +108,7 @@ export default function App() {
       return "dark";
     }
   });
-  const [clientSessionId] = useState(ensureSessionId);
+  const [clientSession] = useState(clientSessionId);
   const deferredQuery = useDeferredValue(query);
   const deferredRiskFilter = useDeferredValue(riskFilter);
   const deferredFindingFilter = useDeferredValue(findingFilter);
@@ -143,9 +142,9 @@ export default function App() {
 
   const auditMetadata = useCallback(
     () => ({
-      client_session_id: clientSessionId
+      client_session_id: clientSession
     }),
-    [clientSessionId]
+    [clientSession]
   );
 
   const scan = useCallback(async () => {
@@ -201,9 +200,18 @@ export default function App() {
   const handleFolderUpload = useCallback(async (event) => {
     const files = Array.from(event.target.files || []);
     setError("");
+    let selectedBytes = 0;
     const readableFiles = files
       .filter((file) => !file.name.match(/\.(png|jpg|jpeg|gif|webp|ico|pdf|zip|exe|dll|woff2?|ttf|mp4|mp3)$/i))
-      .slice(0, 80);
+      .slice(0, 80)
+      .filter((file) => {
+        if (file.size > MAX_FOLDER_FILE_BYTES || selectedBytes + file.size > MAX_FOLDER_TOTAL_BYTES) return false;
+        selectedBytes += file.size;
+        return true;
+      });
+    if (readableFiles.length < files.length) {
+      setError("Some binary or oversized files were skipped to keep the scan within safe resource limits.");
+    }
     const loaded = await Promise.all(
       readableFiles.map(async (file) => ({
         path: file.webkitRelativePath || file.name,
@@ -998,7 +1006,10 @@ function FindingCard({ finding }) {
             </div>
           )}
           <div className="official-references">
-            {(learning.references || []).map((reference) => <a key={reference.url} href={reference.url} target="_blank" rel="noreferrer">{reference.title}</a>)}
+            {(learning.references || []).map((reference) => {
+              const url = safeOfficialReference(reference.url);
+              return url ? <a key={url} href={url} target="_blank" rel="noreferrer">{reference.title}</a> : null;
+            })}
           </div>
         </details>
       )}
@@ -1016,3 +1027,19 @@ function LearningList({ title, items = [], ordered = false }) {
 }
 
 const MemoFindingCard = memo(FindingCard);
+
+function safeOfficialReference(value) {
+  try {
+    const url = new URL(value);
+    const allowedHosts = new Set([
+      "cheatsheetseries.owasp.org",
+      "developer.mozilla.org",
+      "cwe.mitre.org",
+      "owasp.org",
+      "www.rfc-editor.org"
+    ]);
+    return url.protocol === "https:" && allowedHosts.has(url.hostname) ? url.toString() : "";
+  } catch {
+    return "";
+  }
+}

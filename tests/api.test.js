@@ -10,11 +10,12 @@ process.env.ADMIN_SESSION_SECRET = "test-session-secret-with-enough-entropy";
 const adminHandler = require("../api/admin");
 const { clearAuditRecords, listAuditRecords } = require("../api/_auditStore");
 const scanHandler = require("../api/scans");
+const TEST_SESSION = "45e6f879-52cd-4e4b-b8e3-8819727f00ad";
 
 function invoke(handler, { method = "GET", body, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const output = { headers: {} };
-    const req = { method, body, headers };
+    const req = { method, body, headers: { "x-leakshield-session": TEST_SESSION, ...headers } };
     const res = {
       setHeader(name, value) {
         output.headers[name] = value;
@@ -63,7 +64,9 @@ test("scans the supplied leak sample and stores only a redacted audit summary", 
   assert.equal(records.length, 1);
   assert.equal(records[0].submitted_input.source_name, "sample_leak.txt");
   assert.equal(JSON.stringify(records).includes(content.trim()), false);
+  assert.equal(JSON.stringify(response.body).includes("shaheerthebestcreation"), false);
   assert.equal(records[0].request_context.network_data, "not_collected");
+  assert.notEqual(records[0].session_id, TEST_SESSION);
 });
 
 test("rejects unsupported scan modes", async () => {

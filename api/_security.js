@@ -1,6 +1,8 @@
 const crypto = require("crypto");
+const net = require("net");
 
 const DEFAULT_ALLOWED_ORIGINS = [
+  "https://leak-sheild-pro-2-0.vercel.app",
   "https://leak-shield-pro.vercel.app",
   "https://leak-shield-pro-mustafa-ahmeds-projects-b0ec78de.vercel.app",
   "https://leak-shield-pro-git-main-mustafa-ahmeds-projects-b0ec78de.vercel.app",
@@ -9,6 +11,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   "http://127.0.0.1:5173",
   "http://127.0.0.1:5174"
 ];
+const MAX_RATE_LIMIT_BUCKETS = 10_000;
+const SESSION_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function headerValue(req, name) {
   const value = req.headers[name.toLowerCase()];
@@ -16,12 +20,19 @@ function headerValue(req, name) {
 }
 
 function clientIp(req) {
-  return (
-    headerValue(req, "x-forwarded-for").split(",")[0].trim() ||
-    headerValue(req, "x-real-ip") ||
-    headerValue(req, "x-vercel-forwarded-for") ||
-    "unknown"
-  );
+  const candidates = process.env.VERCEL
+    ? [headerValue(req, "x-vercel-forwarded-for"), headerValue(req, "x-real-ip")]
+    : [req.socket?.remoteAddress || ""];
+  for (const candidate of candidates) {
+    const value = candidate.split(",")[0].trim().split("%")[0];
+    if (net.isIP(value)) return value;
+  }
+  return "unknown";
+}
+
+function sessionId(req) {
+  const value = headerValue(req, "x-leakshield-session").trim();
+  return SESSION_PATTERN.test(value) ? value.toLowerCase() : "";
 }
 
 function allowedOrigins() {
@@ -48,7 +59,7 @@ function setApiSecurityHeaders(req, res, { methods = "GET,POST,OPTIONS" } = {}) 
   }
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", methods);
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-LeakShield-Session");
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
@@ -94,6 +105,14 @@ function rateLimit(req, res, key, { limit, windowMs }) {
   const bucketKey = `${key}:${clientIp(req)}`;
   const now = Date.now();
   const buckets = (globalThis.__LEAKSHIELD_RATE_LIMITS__ ||= new Map());
+  if (buckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+    for (const [name, value] of buckets) {
+      if (value.resetAt <= now) buckets.delete(name);
+    }
+    while (buckets.size >= MAX_RATE_LIMIT_BUCKETS) {
+      buckets.delete(buckets.keys().next().value);
+    }
+  }
   const bucket = buckets.get(bucketKey);
   if (!bucket || bucket.resetAt <= now) {
     buckets.set(bucketKey, { count: 1, resetAt: now + windowMs });
@@ -112,5 +131,6 @@ module.exports = {
   rateLimit,
   safeCredentialEqual,
   safeStringEqual,
+  sessionId,
   setApiSecurityHeaders
 };

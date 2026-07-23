@@ -2,13 +2,19 @@ FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV PATH="/app/.venv/bin:${PATH}"
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e .
+RUN groupadd --system leakshield && useradd --system --gid leakshield --home /app leakshield
 
-COPY app ./app
+COPY pyproject.toml uv.lock ./
+RUN pip install --no-cache-dir uv==0.8.15 \
+    && uv sync --frozen --no-dev
+
+COPY --chown=leakshield:leakshield app ./app
+
+USER leakshield
 
 EXPOSE 8000
 
